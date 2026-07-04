@@ -23,6 +23,7 @@ from rich.panel import Panel
 from rich import box
 from duckduckgo_search import DDGS
 from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 # ============================================================
@@ -3726,7 +3727,11 @@ def main():
     def _(event):
         event.current_buffer.insert_text("\n")
 
-    session = PromptSession(key_bindings=bindings)
+    history_path = os.path.join(_get_data_dir(), "history")
+    session = PromptSession(
+        key_bindings=bindings,
+        history=FileHistory(history_path)
+    )
 
     while True:
         try:
