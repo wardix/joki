@@ -170,18 +170,35 @@ def _load_models():
             data = json.loads(_CONFIG_PATH.read_text())
             models = data.get("models", {})
             if models:
-                for m in models.values():
+                for k, m in models.items():
                     if "api_keys" not in m or not isinstance(m["api_keys"], list):
                         old = m.pop("api_key", "")
                         m["api_keys"] = [old] if old else []
+                    
+                    if not m.get("api_keys") or not m["api_keys"][0]:
+                        env_key = f"JOKI_{k.upper()}_KEY"
+                        if "openrouter" in m.get("base_url", "").lower():
+                            env_key = "JOKI_OPENROUTER_KEY"
+                        val = os.environ.get(env_key, "")
+                        if val:
+                            m["api_keys"] = [val]
                 return models
         except Exception:
             pass
     raw = dict(_DEFAULT_MODELS)
-    for m in raw.values():
+    for k, m in raw.items():
         if "api_keys" not in m or not isinstance(m["api_keys"], list):
             old = m.pop("api_key", "")
             m["api_keys"] = [old] if old else []
+            
+        if not m.get("api_keys") or not m["api_keys"][0]:
+            env_key = f"JOKI_{k.upper()}_KEY"
+            if "openrouter" in m.get("base_url", "").lower():
+                env_key = "JOKI_OPENROUTER_KEY"
+            val = os.environ.get(env_key, "")
+            if val:
+                m["api_keys"] = [val]
+                
     _auto_create_config()
     return raw
 
