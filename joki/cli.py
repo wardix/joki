@@ -350,7 +350,6 @@ def _check_update():
         pass
 
 def main():
-    _load_plugins()
     if "--version" in sys.argv:
         print(f"Joki v{__version__}")
         sys.exit(0)
@@ -361,6 +360,7 @@ def main():
         print("Updated! Restart Joki untuk menggunakan versi terbaru.")
         sys.exit(0)
 
+    _load_plugins()
     _check_update()
 
     os.system("clear" if os.name == "posix" else "cls")
