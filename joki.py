@@ -27,8 +27,10 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 # ============================================================
+# ============================================================
 # CONFIG
 # ============================================================
+__version__ = "0.1.0"
 BACKUP_DIR = "/tmp/agent_backups"
 _CURRENT_SESSION = None
 _joki_cancel = threading.Event()
@@ -3674,7 +3676,29 @@ def _build_system_prompt():
         base += f"\n\nMemori tersimpan ({len(memories)}):\n{items}\n\nGunakan memory_recall untuk detail, memory_store untuk menyimpan info baru."
     return base
 
+def _check_update():
+    try:
+        joki_dir = os.path.dirname(os.path.abspath(__file__))
+        local = subprocess.run(["git", "rev-parse", "HEAD"], cwd=joki_dir, capture_output=True, text=True).stdout.strip()
+        remote = subprocess.run(["git", "ls-remote", "origin", "HEAD"], cwd=joki_dir, capture_output=True, text=True).stdout.split()[0]
+        if local and remote and local != remote:
+            _console.print("[dim]Update tersedia! Jalankan: python joki.py --update[/dim]")
+    except Exception:
+        pass
+
 def main():
+    if "--version" in sys.argv:
+        print(f"Joki v{__version__}")
+        sys.exit(0)
+
+    if "--update" in sys.argv:
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
+        subprocess.run(["git", "pull", "origin", "main"])
+        print("Updated! Restart Joki untuk menggunakan versi terbaru.")
+        sys.exit(0)
+
+    _check_update()
+
     os.system("clear" if os.name == "posix" else "cls")
     global _CURRENT_SESSION, _current_model_config, _MODELS, _exhausted_keys
     _exhausted_keys.clear()
