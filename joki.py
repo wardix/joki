@@ -25,6 +25,8 @@ from duckduckgo_search import DDGS
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.completion import WordCompleter, PathCompleter, merge_completers
 
 # ============================================================
 # ============================================================
@@ -3769,14 +3771,21 @@ def main():
         event.current_buffer.insert_text("\n")
 
     history_path = os.path.join(_get_data_dir(), "history")
+
+    cmd_completer = WordCompleter(['/model', '/sessions', '/view', '/new', '/exit', '/reload', '/reset_quota'])
+    path_completer = PathCompleter()
+    combined_completer = merge_completers([cmd_completer, path_completer])
+
     session = PromptSession(
         key_bindings=bindings,
-        history=FileHistory(history_path)
+        history=FileHistory(history_path),
+        completer=combined_completer,
+        bottom_toolbar=HTML('<gray>[Esc]+[Enter] untuk baris baru</gray>')
     )
 
     while True:
         try:
-            user_input = session.prompt("joki> ")
+            user_input = session.prompt(HTML('<cyan>joki</cyan><gray>></gray> '))
         except (EOFError, KeyboardInterrupt):
             print()
             save_session(messages)
