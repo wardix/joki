@@ -1,4 +1,17 @@
-import os, sys, json, subprocess, sqlite3, re, time, random, base64, socket, urllib, csv, platform, ssl
+import os
+import sys
+import json
+import subprocess
+import sqlite3
+import re
+import time
+import random
+import base64
+import socket
+import urllib
+import csv
+import platform
+import ssl
 from pathlib import Path
 from difflib import unified_diff
 from datetime import datetime
@@ -7,82 +20,97 @@ from duckduckgo_search import DDGS
 from joki.state import *
 from joki.utils import *
 from joki.display import _numbered, _Spinner
-def handle_screenshot(args):
-        path = args.get("path", f"/tmp/joki_screenshot_{int(time.time())}.png")
-        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-        cmds = [
-            f"scrot '{path}'",
-            f"import -window root '{path}'",
-            f"gnome-screenshot -f '{path}'"
-        ]
-        for cmd in cmds:
-            r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
-            if os.path.exists(path) and os.path.getsize(path) > 0:
-                size = os.path.getsize(path)
-                return f"Screenshot saved: {path} ({size} bytes)"
-        return "Error: gagal mengambil screenshot. Install scrot: sudo apt install scrot"
 
+
+def handle_screenshot(args):
+    path = args.get("path", f"/tmp/joki_screenshot_{int(time.time())}.png")
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    cmds = [
+        f"scrot '{path}'",
+        f"import -window root '{path}'",
+        f"gnome-screenshot -f '{path}'"
+    ]
+    for cmd in cmds:
+        r = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=15)
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            size = os.path.getsize(path)
+            return f"Screenshot saved: {path} ({size} bytes)"
+    return "Error: gagal mengambil screenshot. Install scrot: sudo apt install scrot"
 
 
 def handle_ui_screenshot(args):
-        path = args.get("path", "/tmp/joki_ui_screen.png")
-        region = args.get("region", "full")
-        os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
-        if region == "full":
-            r = subprocess.run(["import", "-window", "root", path], capture_output=True, text=True, timeout=15)
-        else:
-            r = subprocess.run(["import", "-crop", region, path], capture_output=True, text=True, timeout=15)
-        if os.path.exists(path) and os.path.getsize(path) > 0:
-            return f"Screenshot saved: {path} ({os.path.getsize(path)} bytes)"
-        return f"Error screenshot: {r.stderr or 'unknown'}. Install imagemagick: sudo apt install imagemagick"
-
+    path = args.get("path", "/tmp/joki_ui_screen.png")
+    region = args.get("region", "full")
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    if region == "full":
+        r = subprocess.run(["import", "-window", "root", path],
+                           capture_output=True, text=True, timeout=15)
+    else:
+        r = subprocess.run(["import", "-crop", region, path],
+                           capture_output=True, text=True, timeout=15)
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return f"Screenshot saved: {path} ({os.path.getsize(path)} bytes)"
+    return f"Error screenshot: {r.stderr or 'unknown'}. Install imagemagick: sudo apt install imagemagick"
 
 
 def handle_ui_click(args):
-        x, y = args["x"], args["y"]
-        btn = args.get("button", "left")
-        btn_map = {"left": 1, "middle": 2, "right": 3}
-        count = args.get("click_count", 1)
-        click_arg = "".join([str(btn_map.get(btn, 1))] * count)
-        r = subprocess.run(["xdotool", "mousemove", str(x), str(y), "click", click_arg],
-                           capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            return f"Clicked {btn} at ({x},{y})"
-        return f"Click error: {r.stderr}. Install xdotool: sudo apt install xdotool"
-
+    x, y = args["x"], args["y"]
+    btn = args.get("button", "left")
+    btn_map = {"left": 1, "middle": 2, "right": 3}
+    count = args.get("click_count", 1)
+    click_arg = "".join([str(btn_map.get(btn, 1))] * count)
+    r = subprocess.run(["xdotool", "mousemove", str(x), str(
+        y), "click", click_arg], capture_output=True, text=True, timeout=10)
+    if r.returncode == 0:
+        return f"Clicked {btn} at ({x},{y})"
+    return f"Click error: {r.stderr}. Install xdotool: sudo apt install xdotool"
 
 
 def handle_ui_type(args):
-        text = args["text"]
-        safe = text.replace('"', '\\"')
-        r = subprocess.run(["xdotool", "type", safe], capture_output=True, text=True, timeout=30)
-        if r.returncode == 0:
-            return f"Typed: {text[:100]}{'...' if len(text) > 100 else ''}"
-        return f"Type error: {r.stderr}"
-
+    text = args["text"]
+    safe = text.replace('"', '\\"')
+    r = subprocess.run(["xdotool", "type", safe],
+                       capture_output=True, text=True, timeout=30)
+    if r.returncode == 0:
+        return f"Typed: {text[:100]}{'...' if len(text) > 100 else ''}"
+    return f"Type error: {r.stderr}"
 
 
 def handle_ui_keypress(args):
-        keys = args["keys"]
-        r = subprocess.run(["xdotool", "key", keys], capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            return f"Key pressed: {keys}"
-        return f"Key error: {r.stderr}"
-
+    keys = args["keys"]
+    r = subprocess.run(["xdotool", "key", keys],
+                       capture_output=True, text=True, timeout=10)
+    if r.returncode == 0:
+        return f"Key pressed: {keys}"
+    return f"Key error: {r.stderr}"
 
 
 def handle_ui_focus(args):
-        title = args["title"]
-        r = subprocess.run(["xdotool", "search", "--name", title, "windowactivate"],
-                           capture_output=True, text=True, timeout=10)
-        if r.returncode == 0 and r.stdout.strip():
-            return f"Window focused: {title}"
-        # fallback: coba windowactivate via classname
-        r2 = subprocess.run(["xdotool", "search", "--class", title, "windowactivate"],
-                            capture_output=True, text=True, timeout=10)
-        if r2.returncode == 0 and r2.stdout.strip():
-            return f"Window focused: {title}"
-        return f"Window '{title}' not found. Gunakan --name atau --class."
-
-
-
+    title = args["title"]
+    r = subprocess.run(["xdotool",
+                        "search",
+                        "--name",
+                        title,
+                        "windowactivate"],
+                       capture_output=True,
+                       text=True,
+                       timeout=10)
+    if r.returncode == 0 and r.stdout.strip():
+        return f"Window focused: {title}"
+    # fallback: coba windowactivate via classname
+    r2 = subprocess.run(["xdotool",
+                         "search",
+                         "--class",
+                         title,
+                         "windowactivate"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10)
+    if r2.returncode == 0 and r2.stdout.strip():
+        return f"Window focused: {title}"
+    return f"Window '{title}' not found. Gunakan --name atau --class."
