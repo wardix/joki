@@ -1,25 +1,4 @@
-import os
-import sys
-import json
 import subprocess
-import sqlite3
-import re
-import time
-import random
-import base64
-import socket
-import urllib
-import csv
-import platform
-import ssl
-from pathlib import Path
-from difflib import unified_diff
-from datetime import datetime
-import httpx
-from duckduckgo_search import DDGS
-from joki.state import *
-from joki.utils import *
-from joki.display import _numbered, _Spinner
 
 
 def handle_usb_list(args):
