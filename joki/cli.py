@@ -125,7 +125,8 @@ def agent_loop(messages):
                         except Exception as ex:
                             result = f"[ERROR] {ex}"
                         if result:
-                            stream_print(f"       ```\n{result}\n       ```", delay=0.001)
+                            from joki.rich_display import print_tool_result_rich
+                            print_tool_result_rich(name, args, result)
                         messages.append({
                             "role": "tool",
                             "content": (result or "")[:10000],
@@ -231,7 +232,8 @@ def agent_loop(messages):
                     except Exception as ex:
                         result = f"[ERROR] Exception saat mengeksekusi {name}: {ex}"
                     if result:
-                        stream_print(f"       ```\n{result}\n       ```", delay=0.001)
+                        from joki.rich_display import print_tool_result_rich
+                        print_tool_result_rich(name, args, result)
                     messages.append({
                         "role": "tool",
                         "content": (result or "")[:10000],
