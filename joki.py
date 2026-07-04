@@ -1021,52 +1021,63 @@ def _parse_connection(conn_str):
 
 def _run_db_query(scheme, query, user, password, host, port, database):
     scheme = scheme.lower()
-    quoted = shlex.quote(query)
 
     if scheme in ("mysql", "mariadb"):
         env = os.environ.copy()
         if password:
             env["MYSQL_PWD"] = password
-        pw_part = f"-p{shlex.quote(password)}" if password else ""
-        cmd = f"mysql -u{user} {pw_part} -h{host} -P{port or 3306} {database} -e {quoted}"
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, env=env)
+        cmd = ["mysql", f"-u{user}"]
+        if password:
+            cmd.append(f"-p{password}")
+        cmd.extend([f"-h{host}", f"-P{port or 3306}", database, "-e", query])
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
         return r.stdout or r.stderr
 
     elif scheme in ("postgres", "postgresql", "pgsql"):
-        pw_part = f"PGPASSWORD={shlex.quote(password)}" if password else ""
-        cmd = f"{pw_part} psql -h{host} -p{port or 5432} -U{user} -d{database} -c {quoted} -t"
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        env = os.environ.copy()
+        if password:
+            env["PGPASSWORD"] = password
+        cmd = ["psql", f"-h{host}", f"-p{port or 5432}", f"-U{user}", f"-d{database}", "-c", query, "-t"]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
         return r.stdout or r.stderr
 
     elif scheme == "mongodb":
-        auth = f"-u {user} -p {shlex.quote(password)} --authenticationDatabase admin" if user else ""
-        cmd = f"mongosh {host}:{port or 27017}/{database} {auth} --quiet --eval {quoted}"
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        cmd = ["mongosh", f"{host}:{port or 27017}/{database}"]
+        if user:
+            cmd.extend(["-u", user, "-p", password, "--authenticationDatabase", "admin"])
+        cmd.extend(["--quiet", "--eval", query])
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         return r.stdout or r.stderr
 
     elif scheme == "sqlite":
         if not os.path.isfile(database):
             database = os.path.expanduser(database)
-        cmd = f"sqlite3 {shlex.quote(database)} {quoted}"
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        cmd = ["sqlite3", database, query]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         return r.stdout or r.stderr
 
     elif scheme in ("mssql", "sqlserver"):
-        pw_part = f"-P {shlex.quote(password)}" if password else "-E"
-        cmd = f"sqlcmd -S {host},{port or 1433} -U {user} {pw_part} -d {database} -Q {quoted} -W"
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        cmd = ["sqlcmd", "-S", f"{host},{port or 1433}", "-U", user]
+        if password:
+            cmd.extend(["-P", password])
+        else:
+            cmd.append("-E")
+        cmd.extend(["-d", database, "-Q", query, "-W"])
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         return r.stdout or r.stderr
 
     elif scheme in ("oracle", "oracledb"):
         pw_part = f"{user}/{password}@" if password else f"{user}/"
-        cmd = f"echo {quoted} | sqlplus -S {pw_part}{host}:{port or 1521}/{database}"
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        cmd = ["sqlplus", "-S", f"{pw_part}{host}:{port or 1521}/{database}"]
+        r = subprocess.run(cmd, input=query, capture_output=True, text=True, timeout=30)
         return r.stdout or r.stderr
 
     elif scheme == "redis":
-        auth = f"-a {shlex.quote(password)}" if password else ""
-        cmd = f"redis-cli -h {host} -p {port or 6379} {auth} {quoted}"
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        cmd = ["redis-cli", "-h", host, "-p", str(port or 6379)]
+        if password:
+            cmd.extend(["-a", password])
+        cmd.extend(shlex.split(query))
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         return r.stdout or r.stderr
 
     else:
