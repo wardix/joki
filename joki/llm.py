@@ -75,7 +75,7 @@ def call_llm(messages):
                     headers = {"Content-Type": "application/json"}
                     if key:
                         headers["Authorization"] = f"Bearer {key}"
-                    import random, time, json
+                    import random, time
                     MAX_RETRIES = 3
                     RETRYABLE_ERRORS = (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError)
                     for retry in range(MAX_RETRIES):
