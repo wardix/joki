@@ -67,7 +67,7 @@ Joki adalah asisten AI berbasis terminal yang bekerja secara otonom. Kasih perin
 ### Setup
 
 ```bash
-git clone https://github.com/<username>/joki.git
+git clone https://github.com/wardix/joki.git
 cd joki
 pip install -r requirements.txt
 ```
