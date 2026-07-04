@@ -39,6 +39,11 @@ _SUDO_PASSWORD = None    # cached sudo password (di-reset tiap sesi)
 _PERSISTENT_SHELL = None # persistent shell process
 _SHELL_LOCK = threading.Lock()
 
+class JokiError(Exception): pass
+class ToolError(JokiError): pass
+class LLMError(JokiError): pass
+class ConfigError(JokiError): pass
+
 # ============================================================
 # PERSISTENT SHELL SESSION
 # ============================================================
@@ -1140,7 +1145,7 @@ def _is_admin():
         try:
             import ctypes
             return ctypes.windll.shell32.IsUserAnAdmin() != 0
-        except:
+        except Exception:
             return False
     else:
         try:
@@ -1526,7 +1531,7 @@ def execute(name, args):
                     if r == 0:
                         try:
                             service = socket.getservbyport(port)
-                        except:
+                        except Exception:
                             service = "unknown"
                         results.append(f"  PORT {port:>5}/tcp  OPEN  {service}")
                     sock.close()
@@ -1577,7 +1582,7 @@ def execute(name, args):
                         if r.stdout.strip():
                             output.append(f"    {sd_target} -> {r.stdout.strip()}")
                             found += 1
-                    except:
+                    except Exception:
                         pass
                 output.append(f"  Found {found} subdomains")
 
@@ -1658,7 +1663,7 @@ def execute(name, args):
                                 output.append(f"    OK (payload: {desc})")
                         else:
                             output.append(f"    {rr.status_code} (payload: {desc})")
-                    except:
+                    except Exception:
                         output.append(f"    Error (payload: {desc})")
 
             if "xss" in checks or "all" in checks:
@@ -1678,7 +1683,7 @@ def execute(name, args):
                             output.append(f"    \033[31mSUSPECT XSS\033[0m (payload reflected)")
                         else:
                             output.append(f"    No reflection (payload: {payload[:30]})")
-                    except:
+                    except Exception:
                         output.append(f"    Error (payload: {payload[:30]})")
 
             return f"[WEB_VULN] Scan result for {url}:\n" + "\n".join(output)
@@ -1738,7 +1743,7 @@ def execute(name, args):
                                         output.append(f"  \033[33mExpiring soon: {remaining} days\033[0m")
                                     else:
                                         output.append(f"  \033[32mValid: {remaining} days remaining\033[0m")
-                                except:
+                                except Exception:
                                     pass
 
                             san = cert.get('subjectAltName', [])
@@ -1813,7 +1818,7 @@ def execute(name, args):
                         if rr.status_code in (200, 201, 204, 301, 302, 307, 308, 401, 403):
                             size = len(rr.content)
                             found.append(f"  {rr.status_code:>3}  {size:>8}b  {test_url}")
-                    except:
+                    except Exception:
                         pass
 
                     if ext_list:
@@ -1824,7 +1829,7 @@ def execute(name, args):
                                 if rr.status_code in (200, 201, 204, 301, 302, 307, 308, 401, 403):
                                     size = len(rr.content)
                                     found.append(f"  {rr.status_code:>3}  {size:>8}b  {test_url_ext}")
-                            except:
+                            except Exception:
                                 pass
 
             if not found:
@@ -1841,7 +1846,7 @@ def execute(name, args):
                         data = r.json()
                     else:
                         data = None
-                except:
+                except Exception:
                     data = None
 
             output = []
@@ -1869,7 +1874,7 @@ def execute(name, args):
                             output.append("")
                     else:
                         output.append(f"  No results found for '{query}'")
-                except:
+                except Exception:
                     output.append(f"  Error searching for '{query}'")
 
             return f"[CVE] Results for '{query}':\n" + "\n".join(output)
@@ -1984,7 +1989,7 @@ def execute(name, args):
                     if rr.status_code == 200:
                         raw_js = rr.text
                         js_contents.append((url.rsplit("/", 1)[-1], raw_js))
-                except:
+                except Exception:
                     return f"[JS] Error fetching JS file: {url}"
             else:
                 try:
@@ -2004,7 +2009,7 @@ def execute(name, args):
                             if rr.status_code == 200:
                                 name = js_url.rsplit("/", 1)[-1][:40]
                                 js_contents.append((name, rr.text))
-                        except:
+                        except Exception:
                             pass
                 except Exception as e:
                     return f"[JS] Error: {e}"
@@ -2166,7 +2171,7 @@ def execute(name, args):
                             for ipat in inner_patterns:
                                 for m in re.finditer(ipat, rr.text, re.IGNORECASE):
                                     apis.add(m.group(1))
-                    except:
+                    except Exception:
                         pass
 
                 if apis:
@@ -2220,7 +2225,7 @@ def execute(name, args):
                         mr = httpx.head(mu, timeout=5, verify=False)
                         if mr.status_code in (200, 204):
                             found_maps.append(mu)
-                    except:
+                    except Exception:
                         pass
 
             comment_maps = re.findall(r'//#\s*sourceMappingURL=(.+\.map)', r.text)
@@ -2254,7 +2259,7 @@ def execute(name, args):
                             output.append(f"    Identifiers ({len(names)}):")
                             for n in names[:20]:
                                 output.append(f"      {n}")
-                except:
+                except Exception:
                     output.append(f"    (could not parse source map)")
 
             return f"[SOURCEMAP] Source Map Check for {url}:\n" + "\n".join(output)
