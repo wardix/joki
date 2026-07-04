@@ -26,7 +26,7 @@ def print_tool_result_rich(name, args, result):
         elif name == "read_file":
             path = args.get("path", "")
             ext = os.path.splitext(path)[1].lstrip(".").lower() or "text"
-            _console.print(Syntax(result, ext, line_numbers=True, word_wrap=True))
+            _console.print(Syntax(result, ext, line_numbers=False, word_wrap=True))
             return
 
         elif name == "port_scan":
