@@ -1,5 +1,8 @@
 import os, json
 from joki.state import *
+# ============================================================
+# CONFIG
+# ============================================================
 def _get_data_dir():
     """Return stable data directory: ~/.local/share/joki/"""
     return os.path.join(os.path.expanduser("~"), ".local", "share", "joki")
