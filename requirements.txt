@@ -1,6 +1,12 @@
+# Core
 httpx>=0.27,<1.0
 prompt_toolkit>=3.0,<4.0
 duckduckgo_search>=6.0,<7.0
 rich>=15.0,<16.0
-pyserial>=3.5
-openai-whisper>=20231117
+
+# Dev
+pytest>=7.0
+
+# Optional (install jika butuh fitur tertentu)
+# pyserial>=3.5              # untuk handle_serial_send
+# openai-whisper>=20231117   # untuk audio_transcribe
