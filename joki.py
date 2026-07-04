@@ -2923,7 +2923,19 @@ def call_llm(messages):
                     else:
                         url = f"{model_cfg['base_url']}/api/chat"
                         body = {"model": model_cfg["model"], "messages": messages, "tools": TOOLS, "stream": False, "max_tokens": 4096}
-                    r = httpx.post(url, json=body, headers=headers, timeout=120, follow_redirects=True)
+                    import random, time
+                    MAX_RETRIES = 3
+                    RETRYABLE_ERRORS = (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError)
+                    for retry in range(MAX_RETRIES):
+                        try:
+                            r = httpx.post(url, json=body, headers=headers, timeout=120, follow_redirects=True)
+                            break
+                        except RETRYABLE_ERRORS as e:
+                            if retry == MAX_RETRIES - 1:
+                                raise
+                            delay = (2 ** retry) + random.uniform(0, 1)
+                            _console.print(f"[yellow]Network error, retry in {delay:.1f}s...[/yellow]")
+                            time.sleep(delay)
                     data = r.json()
                     if r.status_code != 200:
                         raise httpx.HTTPStatusError(f"{data}", request=r.request, response=r)
