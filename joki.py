@@ -1213,6 +1213,19 @@ def _run_elevated(cmd, password):
             capture_output=True, text=True, timeout=60
         )
 
+DANGEROUS_PATTERNS = [
+    r"\brm\s+-rf\b",
+    r"\bDROP\s+(TABLE|DATABASE)\b",
+    r"\bdd\b.*of=",
+    r"\bmkfs\b",
+]
+
+def _confirm_dangerous(cmd):
+    if any(re.search(p, cmd, re.I) for p in DANGEROUS_PATTERNS):
+        _console.print(f"[yellow]⚠ Operasi berbahaya terdeteksi:[/yellow] {cmd}")
+        return input("Lanjutkan? (y/N): ").lower() == 'y'
+    return True
+
 def execute(name, args):
     try:
         if name == "read_file":
@@ -1258,6 +1271,8 @@ def execute(name, args):
 
         elif name == "run_command":
             cmd = args["cmd"].strip()
+            if not _confirm_dangerous(cmd):
+                return "Dibatalkan oleh user."
             sudo_password = None
             actual_cmd = cmd
             use_sudo = False
@@ -1299,6 +1314,8 @@ def execute(name, args):
 
         elif name == "db_query":
             scheme, user, password, host, port, database = _parse_connection(args["connection"])
+            if not _confirm_dangerous(args["query"]):
+                return "Dibatalkan oleh user."
             with _Spinner("Query database"):
                 return _run_db_query(scheme, args["query"], user, password, host, port, database)
 
