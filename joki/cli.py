@@ -103,7 +103,7 @@ def agent_loop(messages):
             if content and not content.strip().startswith("[RENCANA]"):
                 stream_print(content)
 
-            safe_tools = {"read_file", "list_dir", "search_code", "web_search", "web_fetch", "db_query"}
+            safe_tools = {"read_file", "list_dir", "search_code", "web_search", "web_fetch"}
             is_parallel = all(tc["function"]["name"] in safe_tools for tc in msg["tool_calls"])
             
             if is_parallel and len(msg["tool_calls"]) > 1:
