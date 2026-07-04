@@ -56,6 +56,18 @@ Joki adalah asisten AI berbasis terminal yang bekerja secara otonom. Kasih perin
 - **Session management** — simpan, list, dan lanjutkan percakapan
 - **TODO tracking** — buat dan kelola task list per sesi
 
+### 🚀 Fitur Baru (v2.0)
+- 🔐 **Env var API keys** — Gunakan `JOKI_<MODEL>_KEY` sebagai alternatif config.json
+- 🛡️ **Konfirmasi operasi destruktif** — `rm -rf`, `DROP TABLE`, dll butuh approval otomatis
+- 🌊 **Streaming response** — token-by-token real-time output
+- 📜 **Command history** — persistent history lintas sesi
+- 🔤 **Autocomplete** — slash commands dan file paths
+- 🔌 **Plugin system** — custom tools dari `~/.local/share/joki/plugins/*.py`
+- ⚡ **Parallel tool execution** — read-only tools dieksekusi bersamaan
+- 📏 **Context window management** — auto-trim pesan lama (128K limit)
+- 🔄 **Retry + backoff** — otomatis retry saat network error
+- 🎨 **Rich output** — tabel untuk db_query, syntax highlight untuk read_file
+
 ---
 
 ## 📦 Instalasi
@@ -107,17 +119,23 @@ Kamu bisa menambahkan banyak model dan banyak API key per model — Joki akan ot
 
 ### Mode interaktif
 ```bash
-python joki.py
+python -m joki
 ```
 
 ### Langsung kasih perintah
 ```bash
-python joki.py "buatkan REST API sederhana pakai Flask"
+python -m joki "buatkan REST API sederhana pakai Flask"
 ```
 
 ### Masuk folder dulu, baru eksekusi
 ```bash
-python joki.py /path/ke/project "fix semua bug di sini"
+python -m joki /path/ke/project "fix semua bug di sini"
+```
+
+### Flags & Options
+```bash
+python -m joki --version    # Cek versi Joki
+python -m joki --update     # Update Joki ke versi terbaru
 ```
 
 ### Dalam sesi interaktif
@@ -160,7 +178,24 @@ Joki mendukung model AI apapun yang kompatibel dengan OpenAI API format:
 
 ```
 joki/
-├── joki.py              # Main script (semua dalam satu file)
+├── joki/
+│   ├── __main__.py      # Entry point
+│   ├── cli.py           # Main loop, slash commands
+│   ├── config.py        # Model loading, config management
+│   ├── constants.py     # TOOLS definitions
+│   ├── display.py       # Tool labels, Spinner, output formatting
+│   ├── executor.py      # TOOL_HANDLERS dispatch table
+│   ├── llm.py           # LLM call, streaming, token counting
+│   ├── plugins.py       # Plugin system auto-loader
+│   ├── rich_display.py  # Rich table/syntax formatting
+│   ├── session.py       # Save/load sessions
+│   ├── state.py         # Shared globals, exceptions
+│   ├── utils.py         # Admin check, sudo, dangerous cmd confirmation
+│   └── tools/           # Tool handlers (10 modules)
+│       ├── database.py, files.py, hardware.py, media.py,
+│       ├── memory.py, reverse_eng.py, security.py,
+│       ├── shell.py, ui.py, web.py
+├── tests/               # Unit tests (pytest)
 ├── config.json          # Konfigurasi model & API keys (JANGAN commit!)
 ├── config.example.json  # Template konfigurasi
 ├── requirements.txt     # Python dependencies
@@ -172,6 +207,7 @@ Data runtime disimpan di `~/.local/share/joki/`:
 - `sessions/` — sesi percakapan (JSON)
 - `logs/` — log readable per sesi
 - `memory.json` — memori jangka panjang
+- `plugins/` — custom tool handlers
 
 ---
 
@@ -183,19 +219,22 @@ Data runtime disimpan di `~/.local/share/joki/`:
 | `rich` | Terminal UI (syntax highlighting, panels, spinners) |
 | `prompt_toolkit` | Input interaktif dengan key bindings |
 | `duckduckgo_search` | Web search |
-| `pyserial` | Komunikasi serial (Arduino, modem) |
-| `openai-whisper` | Audio transcription |
+| `pytest` | Unit testing tools |
+| `pyserial` | *(Optional)* Komunikasi serial (Arduino, modem) |
+| `openai-whisper` | *(Optional)* Audio transcription |
 
 ---
 
-## ⚠️ Disclaimer
+## ⚠️ Keamanan & Disclaimer
 
 Joki bisa menjalankan command di sistem kamu secara langsung. Gunakan dengan bijak:
 
-- **Jangan jalankan sebagai root** kecuali diperlukan
-- **Review output** sebelum mempercayai hasil sepenuhnya
-- Fitur pentesting **hanya untuk target yang kamu miliki/punya izin**
-- API key di `config.json` bersifat sensitif — jangan commit ke git
+- **Env var untuk API keys:** Untuk keamanan ekstra, gunakan env var `JOKI_<MODEL>_KEY` daripada menyimpan key di `config.json`.
+- **Konfirmasi Otomatis:** Operasi yang berbahaya (seperti `rm -rf`, `DROP TABLE`, dsb) akan memicu fallback serial dan meminta persetujuan sebelum dieksekusi.
+- **Custom Exception Hierarchy:** Error handling lebih aman dengan hirarki khusus (`JokiError`, `ToolError`, `LLMError`, `ConfigError`).
+- **Review output** sebelum mempercayai hasil sepenuhnya.
+- Fitur pentesting **hanya untuk target yang kamu miliki/punya izin**.
+- **Jangan jalankan sebagai root** kecuali diperlukan.
 
 ---
 
