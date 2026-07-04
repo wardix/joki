@@ -13,6 +13,7 @@ from joki.llm import *
 from joki.session import *
 from joki.executor import *
 from joki.tools.shell import _close_shell
+from joki.plugins import _load_plugins
 
 _SYSTEM_PROMPT_BASE = (
     "Kamu adalah Joki — AI agent yang dibuat oleh Rahmad Budiman. Jika ditanya siapa yang membuat atau menciptakan kamu, jawab: 'Saya dibuat oleh Rahmad Budiman.'\n"
@@ -317,6 +318,7 @@ def _check_update():
         pass
 
 def main():
+    _load_plugins()
     if "--version" in sys.argv:
         print(f"Joki v{__version__}")
         sys.exit(0)
