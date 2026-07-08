@@ -1,12 +1,12 @@
-import os
-import json
+import os, json
 from joki.state import *
 from joki.utils import *
+from joki.config import _get_data_dir
 
 
 def _memory_path(name=None):
     name = name or _CURRENT_SESSION or "default"
-    return os.path.join(SESSION_DIR, "memories", f"{name}.json")
+    return os.path.join(_get_data_dir(), "memories", f"{name}.json")
 
 
 def _load_memory(name=None):
@@ -30,7 +30,7 @@ def _save_memory(data, name=None):
 
 def _todo_path():
     return os.path.join(
-        SESSION_DIR,
+        _get_data_dir(),
         "todos",
         f"{_CURRENT_SESSION or 'default'}.json")
 

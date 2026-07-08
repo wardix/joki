@@ -1,4 +1,4 @@
-import os, sys, json, re, time, threading
+import os, sys, json, re, time, threading, shlex
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
@@ -6,13 +6,14 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.completion import WordCompleter, PathCompleter, merge_completers
 
 from joki.state import *
-from joki.config import *
+from joki.config import _get_data_dir, _get_config_path, _load_models, _MODELS, _current_model_config, _CONFIG_PATH
 from joki.constants import *
 from joki.display import *
 from joki.llm import *
 from joki.session import *
 from joki.executor import *
 from joki.tools.shell import _close_shell
+from joki.tools.memory import _load_memory, _save_memory
 from joki.plugins import _load_plugins
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -348,6 +349,15 @@ def _check_update():
             _console.print("[dim]Update tersedia! Jalankan: python joki.py --update[/dim]")
     except Exception:
         pass
+
+def _run_auto_test(cmd):
+    try:
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        return r.returncode, r.stdout + r.stderr, False
+    except subprocess.TimeoutExpired:
+        return -1, "", True
+    except Exception as e:
+        return -1, str(e), False
 
 def main():
     if "--version" in sys.argv:

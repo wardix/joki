@@ -1,6 +1,8 @@
-import json, time, httpx, random
+import json, time, httpx, random, threading
 from joki.state import *
-from joki.display import stream_print
+from joki.config import _current_model_config, _MODELS
+from joki.display import stream_print, _Spinner
+from joki.constants import TOOLS
 MAX_TOKENS = 128000
 
 def estimate_tokens(m):
@@ -27,7 +29,8 @@ def call_llm(messages):
         _attempted_ids.add(identity)
 
         all_keys = mc.get("api_keys") or [mc.get("api_key", "")]
-        available = [(i, k) for i, k in enumerate(all_keys) if k not in _exhausted_keys and k]
+        needs_key = mc.get("provider") != "ollama"
+        available = [(i, k) for i, k in enumerate(all_keys) if k not in _exhausted_keys and (k or not needs_key)]
 
         if not available:
             fallback = mc.get("fallback", "")
@@ -100,7 +103,6 @@ def call_llm(messages):
                                                     message_role = delta["role"]
                                                 if "content" in delta and delta["content"]:
                                                     content = delta["content"]
-                                                    print(content, end="", flush=True)
                                                     content_parts.append(content)
                                                 if "tool_calls" in delta and delta["tool_calls"]:
                                                     for tc in delta["tool_calls"]:
@@ -119,7 +121,6 @@ def call_llm(messages):
                                 final_msg = {"role": message_role}
                                 if content_parts:
                                     final_msg["content"] = "".join(content_parts)
-                                    print()
                                 else:
                                     final_msg["content"] = None
                                 
@@ -183,6 +184,9 @@ def call_llm(messages):
                     continue
                 return {"role": "assistant", "content": f"[ERROR] LLM call failed: {emsg}"}
 
+            content = result[0].get("content") or ""
+            if content:
+                print(content, flush=True)
             return result[0]
 
     return {"role": "assistant", "content": "[ERROR] Max attempts reached."}

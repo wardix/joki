@@ -2,6 +2,13 @@ import threading
 from rich.console import Console
 
 __version__ = "0.1.0"
+__all__ = [
+    "__version__", "BACKUP_DIR", "_HAS_TTY",
+    "_console", "_current_model_config", "_CURRENT_SESSION",
+    "_joki_cancel", "_exhausted_keys", "_SUDO_PASSWORD",
+    "_PERSISTENT_SHELL", "_SHELL_LOCK",
+    "JokiError", "ToolError", "LLMError", "ConfigError",
+]
 BACKUP_DIR = "/tmp/agent_backups"
 
 try:

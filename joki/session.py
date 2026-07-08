@@ -1,8 +1,11 @@
-import os, json
+import os, json, subprocess
 from datetime import datetime
 from joki.state import *
 from joki.config import _get_data_dir
+from joki.tools.memory import _load_memory, _save_memory
+from joki.display import _clean_latex, _numbered
 SESSION_DIR = _get_data_dir()
+LOG_DIR = os.path.join(SESSION_DIR, "logs")
 
 def _session_path(name):
     return os.path.join(SESSION_DIR, f"{name}.json")

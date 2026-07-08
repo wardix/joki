@@ -1,6 +1,12 @@
 import os, sys, subprocess, getpass, re
 from joki.state import *
 from joki.display import _numbered
+
+__all__ = [
+    "_is_admin", "_prompt_sudo", "_run_elevated",
+    "DANGEROUS_PATTERNS", "_confirm_dangerous",
+]
+
 def _is_admin():
     """Check if current process has admin/root privileges."""
     if os.name == 'nt':
