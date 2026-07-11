@@ -1,0 +1,38 @@
+{
+  "models": {
+    "gemma4": {
+      "name": "Gemma 4 (31B Cloud)",
+      "base_url": "https://ollama.com/v1",
+      "model": "gemma4:31b-cloud",
+      "api_keys": ["YOUR_API_KEY_HERE"],
+      "provider": "openai",
+      "default": true
+    },
+    "qwen3-coder": {
+      "name": "Qwen3 Coder 480B (OpenRouter)",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "qwen/qwen3-coder:free",
+      "api_keys": ["YOUR_API_KEY_HERE"],
+      "provider": "openai",
+      "fallback": "gemma4",
+      "default": false
+    },
+    "ollama-local": {
+      "name": "Ollama Lokal (localhost)",
+      "base_url": "http://localhost:11434",
+      "model": "llama3",
+      "api_keys": [""],
+      "provider": "ollama",
+      "default": false
+    },
+    "gemini": {
+      "name": "Gemini 3 Flash Preview (OpenRouter)",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3-flash-preview",
+      "api_keys": ["YOUR_API_KEY_HERE"],
+      "provider": "openai",
+      "fallback": "gemma4",
+      "default": false
+    }
+  }
+}

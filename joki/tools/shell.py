@@ -1,15 +1,18 @@
-import os
-import sys
-import subprocess
-import re
-import time
+import os, sys, subprocess, re, time, select, pty, threading
 from joki.state import *
 from joki.utils import *
-from joki.display import _Spinner
+from joki.display import _IS_TTY
+
+
+_HAS_PYTE = False
+try:
+    import pyte
+    _HAS_PYTE = True
+except ImportError:
+    pass
 
 
 def _get_shell():
-    """Start or return the persistent shell process (bash)."""
     global _PERSISTENT_SHELL
     if _PERSISTENT_SHELL is not None:
         poll = _PERSISTENT_SHELL.poll()
@@ -21,27 +24,18 @@ def _get_shell():
             ["bash", "--norc", "--noprofile"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=0
-        )
+            stderr=subprocess.PIPE, text=True, bufsize=0)
     except FileNotFoundError:
         try:
             _PERSISTENT_SHELL = subprocess.Popen(
-                ["sh"],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=0
-            )
+                ["sh"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, bufsize=0)
         except Exception:
             return None
     return _PERSISTENT_SHELL
 
 
 def _close_shell():
-    """Kill the persistent shell process if running."""
     global _PERSISTENT_SHELL
     if _PERSISTENT_SHELL is not None:
         try:
@@ -50,89 +44,267 @@ def _close_shell():
         except Exception:
             try:
                 _PERSISTENT_SHELL.kill()
-            except Exception:
-                pass
+            except Exception as e:
+                _console.print(f"[dim]Warning: Gagal kill shell: {e}[/dim]")
         _PERSISTENT_SHELL = None
+    _close_pty_session()
+
+
+def _close_pty_session():
+    global _PTY_SESSION
+    with _PTY_LOCK:
+        if _PTY_SESSION is not None:
+            try:
+                os.close(_PTY_SESSION["master_fd"])
+            except Exception as e:
+                _console.print(f"[dim]Warning: Gagal close PTY fd: {e}[/dim]")
+            try:
+                _PTY_SESSION["proc"].terminate()
+            except Exception as e:
+                _console.print(f"[dim]Warning: Gagal terminate PTY: {e}[/dim]")
+            _PTY_SESSION = None
+
+
+def _get_pty_session():
+    global _PTY_SESSION
+    with _PTY_LOCK:
+        if _PTY_SESSION is not None:
+            p = _PTY_SESSION["proc"].poll()
+            if p is None:
+                return _PTY_SESSION
+            _close_pty_session()
+
+        master_fd, slave_fd = pty.openpty()
+        proc = subprocess.Popen(
+            ["bash", "--norc", "--noprofile"],
+            stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
+            close_fds=True)
+        os.close(slave_fd)
+        if _HAS_PYTE:
+            screen = pyte.Screen(80, 2000)
+            stream = pyte.Stream(screen)
+        else:
+            screen = stream = None
+        _PTY_SESSION = {
+            "master_fd": master_fd, "proc": proc,
+            "screen": screen, "stream": stream,
+            "buf": b"", "lock": threading.Lock()}
+
+        # Initialize terminal for clean command output
+        os.write(master_fd, b"stty -echo 2>/dev/null\nPS1=\nPROMPT_COMMAND=\nHISTFILE=/dev/null\n")
+        time.sleep(0.3)
+        try:
+            while select.select([master_fd], [], [], 0.05)[0]:
+                if not os.read(master_fd, 65536):
+                    break
+        except (BlockingIOError, OSError):
+            pass
+        return _PTY_SESSION
 
 
 def _shell_execute(cmd, timeout=60):
-    """Execute command in the persistent shell.
-    Returns (stdout+stderr) string.
-    """
-    shell = _get_shell()
-    if shell is None:
-        return "[ERROR] Tidak bisa memulai persistent shell."
+    session = _get_pty_session()
+    if session is None:
+        return "[ERROR] Tidak bisa memulai PTY session."
+
+    master_fd = session["master_fd"]
+    screen = session["screen"]
+    stream = session["stream"]
 
     end_marker = f"__SHELL_END_{os.getpid()}_{time.time_ns()}__"
 
-    full_cmd = f" ( {cmd} ) 2>&1; echo '{end_marker}'"
-
     with _SHELL_LOCK:
+        if screen:
+            screen.reset()
+
         try:
-            shell.stdin.write(full_cmd + "\n")
-            shell.stdin.flush()
+            os.write(master_fd, f"{cmd}\necho {end_marker}\n".encode())
         except Exception as e:
             _close_shell()
-            return f"[ERROR] Gagal menulis ke shell: {e}"
+            return f"[ERROR] Gagal menulis ke PTY: {e}"
+
+        raw_buf = ""
+        start = time.time()
+
+        while True:
+            if _joki_cancel.is_set():
+                return "[CANCELLED]"
+            remaining = timeout - (time.time() - start)
+            if remaining <= 0:
+                _close_shell()
+                return f"[ERROR] Command timeout ({timeout}s)."
+
+            r, _, _ = select.select([master_fd], [], [], min(remaining, 0.1))
+            if not r:
+                continue
+
+            try:
+                chunk = os.read(master_fd, 65536)
+                if not chunk:
+                    _close_shell()
+                    return "[ERROR] PTY process died."
+
+                decoded = chunk.decode(errors='replace')
+
+                if stream and screen:
+                    stream.feed(decoded)
+                    display = "\n".join(line.rstrip() for line in screen.display).strip()
+                    if end_marker in display:
+                        idx = display.index(end_marker)
+                        return display[:idx].rstrip("\n")
+                else:
+                    clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07', '', decoded)
+                    raw_buf += clean
+                    if end_marker in raw_buf:
+                        idx = raw_buf.index(end_marker)
+                        return raw_buf[:idx].replace('\r\n', '\n').replace('\r', '').rstrip("\n")
+
+            except (Exception, KeyboardInterrupt):
+                _close_shell()
+                return "[ERROR] Gagal membaca output PTY."
+
+    return ""
+
+
+def _run_with_pty(cmd, timeout=60):
+    master_fd, slave_fd = pty.openpty()
+    try:
+        proc = subprocess.Popen(
+            ["bash", "-c", cmd],
+            stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
+            close_fds=True)
+        os.close(slave_fd)
+
+        pyte_screen = pyte_stream = None
+        if _HAS_PYTE:
+            pyte_screen = pyte.Screen(80, 2000)
+            pyte_stream = pyte.Stream(pyte_screen)
 
         output = []
         start = time.time()
         while True:
             if _joki_cancel.is_set():
+                proc.terminate()
                 return "[CANCELLED]"
-            elapsed = time.time() - start
-            if elapsed > timeout:
-                _close_shell()
-                return f"[ERROR] Command timeout ({timeout}s). Shell di-restart."
-            try:
-                line = shell.stdout.readline()
-                if not line:
-                    _close_shell()
-                    return "[ERROR] Shell process mati."
-                if line.strip() == end_marker:
+            if time.time() - start > timeout:
+                proc.terminate()
+                return f"[ERROR] Command timeout ({timeout}s)"
+            r, _, _ = select.select([master_fd], [], [], 0.05)
+            if r:
+                try:
+                    chunk = os.read(master_fd, 65536)
+                    if not chunk:
+                        break
+                    decoded = chunk.decode(errors='replace')
+                    output.append(decoded)
+                    if pyte_stream:
+                        pyte_stream.feed(decoded)
+                    if _IS_TTY:
+                        sys.stdout.write(decoded)
+                        sys.stdout.flush()
+                except OSError:
                     break
-                output.append(line)
-            except (Exception, KeyboardInterrupt):
-                _close_shell()
-                return "[ERROR] Gagal membaca output shell."
+            else:
+                if proc.poll() is not None:
+                    break
+        proc.wait()
 
-    return "".join(output).rstrip("\n")
+        raw = "".join(output).strip()
+        if _HAS_PYTE:
+            clean_lines = pyte_screen.display
+            clean = "\n".join(line.rstrip() for line in clean_lines).strip()
+            return clean
+        return raw
+    finally:
+        try:
+            os.close(master_fd)
+        except OSError:
+            _console.print("[dim]Warning: Gagal close PTY master fd[/dim]")
+
 
 # ============================================================
 # MULTI-MODEL SUPPORT
 # ============================================================
 
 
+def _sync_cwd_from_shell():
+    """Sync Python's CWD with the persistent PTY shell's CWD."""
+    session = _get_pty_session()
+    if session is None:
+        return
+    master_fd = session["master_fd"]
+
+    try:
+        with _SHELL_LOCK:
+            marker = f"__PWD_{os.getpid()}_{time.time_ns()}__"
+            os.write(master_fd, f"pwd\necho {marker}\n".encode())
+            buf = ""
+            start = time.time()
+            while time.time() - start < 3:
+                r, _, _ = select.select([master_fd], [], [], 0.05)
+                if r:
+                    chunk = os.read(master_fd, 65536)
+                    if not chunk:
+                        break
+                    buf += chunk.decode(errors='replace').replace('\r\n', '\n').replace('\r', '')
+                    if marker in buf:
+                        lines = buf.split('\n')
+                        for line in lines:
+                            line = line.strip()
+                            if line.startswith('/') and os.path.isdir(line):
+                                os.chdir(line)
+                                return
+    except Exception:
+        _console.print("[dim]Warning: Gagal sync CWD dari PTY[/dim]")
+
+
+def _is_elevated_cmd(cmd):
+    m = re.match(r'^\s*(sudo|runas)\s+', cmd)
+    if m:
+        return m.group(1), cmd[m.end():]
+    return None, cmd
+
+
 def handle_run_command(args):
-    cmd = args["cmd"].strip()
-    if not _confirm_dangerous(cmd):
-        return "Dibatalkan oleh user."
-    sudo_password = None
-    actual_cmd = cmd
-    use_sudo = False
+    cmd = args.get("cmd", "").strip()
+    if not cmd:
+        return "Error: Parameter 'cmd' wajib diisi. Contoh: run_command(cmd=\"ls -la\")"
 
-    if cmd.startswith("sudo ") or (
-            os.name == 'nt' and cmd.startswith("runas ")):
-        use_sudo = True
-        sudo_password = _prompt_sudo()
-        if sudo_password:
-            prefix = "sudo " if cmd.startswith("sudo ") else "runas "
-            actual_cmd = cmd[len(prefix):].lstrip()
+    timeout_ms = args.get("timeout", 120000)
+    if not isinstance(timeout_ms, (int, float)) or timeout_ms < 0:
+        timeout_ms = 120000
+    timeout_s = min(int(timeout_ms) / 1000, 600)
 
-    if use_sudo and sudo_password:
-        with _Spinner("Menjalankan perintah"):
-            result = _run_elevated(actual_cmd, sudo_password)
-        output = result.stdout + result.stderr
-        return output or "(no output)"
+    cwd = args.get("cwd", "")
+    is_interactive = args.get("isInteractive", False)
+
+    if cwd:
+        cwd = os.path.expanduser(cwd)
+        if not os.path.isdir(cwd):
+            return f"Error: Direktori tidak ditemukan: {cwd}"
+        cmd = f"cd {cwd} && {cmd}"
+
+    if _is_elevated_cmd(cmd)[0]:
+        password = _prompt_sudo()
+        if password is None:
+            return "[CANCELLED] Autentikasi administrator dibatalkan."
+
+    if is_interactive:
+        output = _run_with_pty(cmd, timeout=timeout_s)
     else:
-        with _Spinner("Menjalankan perintah"):
-            output = _shell_execute(cmd)
-            return output or "(no output)"
+        output = _shell_execute(cmd, timeout=timeout_s)
+        _sync_cwd_from_shell()
+
+    return output or "(no output)"
 
 
 def handle_service_control(args):
-    svc = args["service"]
-    act = args["action"]
+    svc = args.get("service", "")
+    act = args.get("action", "")
+    if not svc:
+        return "Error: Parameter 'service' wajib diisi. Contoh: service_control(service=\"nginx\", action=\"status\")"
+    if not act:
+        return "Error: Parameter 'action' wajib diisi. Pilihan: start, stop, restart, status. Contoh: service_control(service=\"nginx\", action=\"status\")"
     is_macos = sys.platform == 'darwin'
     if act == "status":
         with _Spinner(f"{act} {svc}"):
@@ -170,7 +342,7 @@ def handle_service_control(args):
             actual_cmd = f"systemctl {act} {svc}"
         if sudo_password:
             with _Spinner(f"{act} {svc}"):
-                r = _run_elevated(actual_cmd, sudo_password)
+                return _run_elevated(actual_cmd, sudo_password, timeout=30)
         else:
             cmd = f"sudo {actual_cmd}" if sudo_password != "__ROOT__" else actual_cmd
             with _Spinner(f"{act} {svc}"):
@@ -184,8 +356,9 @@ def handle_service_control(args):
 
 
 def handle_package_check(args):
-    app = args["app"]
-    # Check via which, dpkg, rpm, etc.
+    app = args.get("app", "")
+    if not app:
+        return "Error: Parameter 'app' wajib diisi. Contoh: package_check(app=\"nginx\")"
     checks = [
         f"which {app} 2>/dev/null",
         f"command -v {app} 2>/dev/null",

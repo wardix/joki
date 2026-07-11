@@ -2,10 +2,13 @@ import os
 import subprocess
 import re
 import httpx
+from joki.state import _console
 
 
 def handle_js_analyze(args):
-    url = args["url"].rstrip("/")
+    url = args.get("url", "").rstrip("/")
+    if not url:
+        return "Error: Parameter 'url' wajib diisi. Contoh: js_analyze(url=\"https://example.com\")"
     extract = args.get("extract", "all")
     output = []
     js_contents = []
@@ -55,7 +58,7 @@ def handle_js_analyze(args):
                         name = js_url.rsplit("/", 1)[-1][:40]
                         js_contents.append((name, rr.text))
                 except Exception:
-                    pass
+                    _console.print(f"[dim]Warning: Gagal fetch JS: {js_url}[/dim]")
         except Exception as e:
             return f"[JS] Error: {e}"
 
@@ -176,7 +179,7 @@ def handle_js_analyze(args):
 
 
 def handle_apk_analyze(args):
-    path = args["path"]
+    path = args.get("path", "")
     output = []
 
     if not os.path.isfile(path):
@@ -307,7 +310,7 @@ def handle_apk_analyze(args):
 
 
 def handle_binary_analyze(args):
-    path = args["path"]
+    path = args.get("path", "")
     min_len = int(args.get("strings_min", 6))
     output = []
 

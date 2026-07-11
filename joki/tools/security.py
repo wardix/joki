@@ -5,10 +5,13 @@ import ssl
 import httpx
 from duckduckgo_search import DDGS
 from joki.display import _Spinner
+from joki.state import _console
 
 
 def handle_port_scan(args):
-    target = args["target"]
+    target = args.get("target", "")
+    if not target:
+        return "Error: Parameter 'target' wajib diisi. Contoh: port_scan(target=\"192.168.1.1\")"
     port_str = args.get("ports", "common")
     scan_type = args.get("scan_type", "quick")
     results = []
@@ -56,7 +59,9 @@ def handle_port_scan(args):
 
 
 def handle_dns_enum(args):
-    domain = args["domain"]
+    domain = args.get("domain", "")
+    if not domain:
+        return "Error: Parameter 'domain' wajib diisi. Contoh: dns_enum(domain=\"example.com\")"
     action = args.get("action", "records")
     output = []
 
@@ -105,7 +110,9 @@ def handle_dns_enum(args):
 
 
 def handle_web_vuln_scan(args):
-    url = args["url"].rstrip("/")
+    url = args.get("url", "").rstrip("/")
+    if not url:
+        return "Error: Parameter 'url' wajib diisi. Contoh: web_vuln_scan(url=\"https://example.com\")"
     checks = args.get("checks", "headers,info")
     output = []
 
@@ -220,7 +227,9 @@ def handle_web_vuln_scan(args):
 
 
 def handle_whois_lookup(args):
-    target = args["target"]
+    target = args.get("target", "")
+    if not target:
+        return "Error: Parameter 'target' wajib diisi. Contoh: whois_lookup(target=\"example.com\")"
     with _Spinner(f"WHOIS lookup {target}"):
         r = subprocess.run(
             ["whois", target],
@@ -264,7 +273,9 @@ def handle_whois_lookup(args):
 
 
 def handle_ssl_check(args):
-    host = args["host"]
+    host = args.get("host", "")
+    if not host:
+        return "Error: Parameter 'host' wajib diisi. Contoh: ssl_check(host=\"example.com\")"
     port = int(args.get("port", 443))
     output = []
 
@@ -305,7 +316,7 @@ def handle_ssl_check(args):
                                 output.append(
                                     f"  \033[32mValid: {remaining} days remaining\033[0m")
                         except Exception:
-                            pass
+                            _console.print("[dim]Warning: Gagal parsing tanggal sertifikat[/dim]")
 
                     san = cert.get('subjectAltName', [])
                     if san:
@@ -325,7 +336,9 @@ def handle_ssl_check(args):
 
 
 def handle_dir_bruteforce(args):
-    url = args["url"].rstrip("/")
+    url = args.get("url", "").rstrip("/")
+    if not url:
+        return "Error: Parameter 'url' wajib diisi. Contoh: dir_bruteforce(url=\"https://example.com\")"
     wordlist_size = args.get("wordlist", "small")
     extensions = args.get("extensions", "")
     ext_list = [f".{e.strip()}" for e in extensions.split(",")
@@ -385,7 +398,7 @@ def handle_dir_bruteforce(args):
                     found.append(
                         f"  {rr.status_code:>3}  {size:>8}b  {test_url}")
             except Exception:
-                pass
+                _console.print(f"[dim]Warning: Gagal mengakses {test_url}[/dim]")
 
             if ext_list:
                 for ext in ext_list:
@@ -398,16 +411,18 @@ def handle_dir_bruteforce(args):
                             found.append(
                                 f"  {rr.status_code:>3}  {size:>8}b  {test_url_ext}")
                     except Exception:
-                        pass
+                        _console.print(f"[dim]Warning: Gagal mengakses {test_url_ext}[/dim]")
 
-    if not found:
-        return f"[DIRBRUTE] No paths found on {url} ({len(paths)} tested)"
+        if not found:
+            return f"[DIRBRUTE] No paths found on {url} ({len(paths)} tested)"
     return f"[DIRBRUTE] Found {len(found)} paths on {url}:\n" + \
         "\n".join(found)
 
 
 def handle_cve_search(args):
-    query = args["query"]
+    query = args.get("query", "")
+    if not query:
+        return "Error: Parameter 'query' wajib diisi. Contoh: cve_search(query=\"apache 2.4.49\")"
     with _Spinner(f"Searching CVEs for {query}"):
         try:
             search_url = f"https://cve.circl.lu/api/search/{query.replace(' ', '/')}"
@@ -455,7 +470,9 @@ def handle_cve_search(args):
 
 
 def handle_tech_detect(args):
-    url = args["url"].rstrip("/")
+    url = args.get("url", "").rstrip("/")
+    if not url:
+        return "Error: Parameter 'url' wajib diisi. Contoh: tech_detect(url=\"https://example.com\")"
     deep = args.get("deep", "simple")
     output = []
     tech = {}
@@ -573,7 +590,9 @@ def handle_tech_detect(args):
 
 
 def handle_api_discover(args):
-    url = args["url"].rstrip("/")
+    url = args.get("url", "").rstrip("/")
+    if not url:
+        return "Error: Parameter 'url' wajib diisi. Contoh: api_discover(url=\"https://example.com\")"
     depth = int(args.get("depth", 2))
     output = []
 
@@ -644,7 +663,7 @@ def handle_api_discover(args):
                         for m in re.finditer(ipat, rr.text, re.IGNORECASE):
                             apis.add(m.group(1))
             except Exception:
-                pass
+                _console.print(f"[dim]Warning: Gagal fetch JS: {js_url}[/dim]")
 
         if apis:
             output.append(f"\n  [Unique API Paths Found]")
@@ -680,7 +699,9 @@ def handle_api_discover(args):
 
 
 def handle_source_map_check(args):
-    url = args["url"].rstrip("/")
+    url = args.get("url", "").rstrip("/")
+    if not url:
+        return "Error: Parameter 'url' wajib diisi. Contoh: source_map_check(url=\"https://example.com\")"
     output = []
 
     try:
@@ -717,7 +738,7 @@ def handle_source_map_check(args):
                 if mr.status_code in (200, 204):
                     found_maps.append(mu)
             except Exception:
-                pass
+                _console.print(f"[dim]Warning: Gagal cek source map: {mu}[/dim]")
 
     comment_maps = re.findall(r'//#\s*sourceMappingURL=(.+\.map)', r.text)
     if comment_maps:
@@ -757,7 +778,9 @@ def handle_source_map_check(args):
 
 
 def handle_form_analyze(args):
-    url = args["url"].rstrip("/")
+    url = args.get("url", "").rstrip("/")
+    if not url:
+        return "Error: Parameter 'url' wajib diisi. Contoh: form_analyze(url=\"https://example.com/login\")"
     output = []
 
     try:

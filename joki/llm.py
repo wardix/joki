@@ -1,7 +1,8 @@
 import json, time, httpx, random, threading
 from joki.state import *
 from joki.config import _current_model_config, _MODELS
-from joki.display import stream_print, _Spinner
+from joki.display import stream_print
+from joki.thinking import ThinkingDisplay
 from joki.constants import TOOLS
 MAX_TOKENS = 128000
 
@@ -11,8 +12,22 @@ def estimate_tokens(m):
 def _trim_messages(messages, max_tokens):
     total = sum(estimate_tokens(m) for m in messages)
     while total > max_tokens and len(messages) > 2:
-        removed = messages.pop(1)
-        total -= estimate_tokens(removed)
+        # Hapus tool result terbesar, bukan yang paling lama
+        tool_idx = None
+        tool_size = -1
+        for i in range(1, len(messages)):
+            if messages[i].get("role") == "tool":
+                sz = len(str(messages[i].get("content", "")))
+                if sz > tool_size:
+                    tool_size = sz
+                    tool_idx = i
+        if tool_idx is not None and tool_size > 100:
+            removed = messages.pop(tool_idx)
+            total -= estimate_tokens(removed)
+        else:
+            # Fallback: hapus yang paling lama (FIFO)
+            removed = messages.pop(1)
+            total -= estimate_tokens(removed)
     return messages
 
 def call_llm(messages):
@@ -20,7 +35,8 @@ def call_llm(messages):
     
     messages = _trim_messages(messages, MAX_TOKENS)
     
-    _joki_cancel.clear()
+    if not _joki_cancel.is_set():
+        _joki_cancel.clear()
     _attempted_ids = set()  # track (base_url, model) tuples tried in this call
 
     for _attempt in range(20):  # safety limit
@@ -71,6 +87,7 @@ def call_llm(messages):
 
             result = []
             error_data = []
+            thinking = ThinkingDisplay()
 
             def _do_request(key=api_key, idx=key_idx, model_cfg=mc):
                 try:
@@ -84,11 +101,13 @@ def call_llm(messages):
                         try:
                             if is_openai:
                                 url = f"{model_cfg['base_url']}/chat/completions"
-                                body = {"model": model_cfg["model"], "messages": messages, "tools": TOOLS, "tool_choice": "auto", "max_tokens": 4096, "stream": True}
+                                resp_max_tokens = model_cfg.get("max_tokens", 8192)
+                                body = {"model": model_cfg["model"], "messages": messages, "tools": TOOLS, "tool_choice": "auto", "max_tokens": resp_max_tokens, "stream": True}
                                 
                                 content_parts = []
                                 tool_calls_dict = {}
                                 message_role = "assistant"
+                                _truncated = False
                                 
                                 with httpx.stream("POST", url, json=body, headers=headers, timeout=120, follow_redirects=True) as r:
                                     if r.status_code != 200:
@@ -104,6 +123,10 @@ def call_llm(messages):
                                                 if "content" in delta and delta["content"]:
                                                     content = delta["content"]
                                                     content_parts.append(content)
+                                                    thinking.push(content)
+                                                elif "tool_calls" in delta and delta["tool_calls"]:
+                                                    if not content_parts:
+                                                        thinking.push("⚙️")
                                                 if "tool_calls" in delta and delta["tool_calls"]:
                                                     for tc in delta["tool_calls"]:
                                                         tc_idx = tc["index"]
@@ -117,20 +140,27 @@ def call_llm(messages):
                                                                 if "arguments" in tc["function"]:
                                                                     tool_calls_dict[tc_idx]["function"].setdefault("arguments", "")
                                                                     tool_calls_dict[tc_idx]["function"]["arguments"] += tc["function"]["arguments"]
+                                                finish_reason = chunk["choices"][0].get("finish_reason")
+                                                if finish_reason == "length":
+                                                    _truncated = True
                                 
                                 final_msg = {"role": message_role}
                                 if content_parts:
-                                    final_msg["content"] = "".join(content_parts)
+                                    full_content = "".join(content_parts)
+                                    if _truncated:
+                                        full_content += "\n\n_[WARNING: Respon terpotong karena mencapai batas max_tokens. Gunakan perintah lebih spesifik atau tingkatkan max_tokens di config.json.]_"
+                                    final_msg["content"] = full_content
                                 else:
-                                    final_msg["content"] = None
-                                
+                                    final_msg["content"] = ""
+
                                 if tool_calls_dict:
-                                    final_msg["tool_calls"] = [tool_calls_dict[i] for i in sorted(tool_calls_dict.keys())]
-                                
+                                    final_msg["tool_calls"] = [tool_calls_dict[i] for i in sorted(tool_calls_dict)]
+
                                 result.append(final_msg)
                             else:
+                                thinking.push("⚙️ Memproses...")
                                 url = f"{model_cfg['base_url']}/api/chat"
-                                body = {"model": model_cfg["model"], "messages": messages, "tools": TOOLS, "stream": False, "max_tokens": 4096}
+                                body = {"model": model_cfg["model"], "messages": messages, "tools": TOOLS, "stream": False, "max_tokens": model_cfg.get("max_tokens", 8192)}
                                 r = httpx.post(url, json=body, headers=headers, timeout=120, follow_redirects=True)
                                 data = r.json()
                                 if r.status_code != 200:
@@ -167,26 +197,20 @@ def call_llm(messages):
             req = threading.Thread(target=_do_request, daemon=True)
             req.start()
 
-            with _Spinner("Joki memproses..."):
+            with thinking:
                 while req.is_alive():
                     if _joki_cancel.is_set():
                         req.join(1)
                         break
-                    req.join(timeout=0.1)
+                    req.join(timeout=0.02)
 
             if _joki_cancel.is_set():
                 return {"role": "assistant", "content": "[CANCELLED] Permintaan dibatalkan oleh pengguna."}
 
             if error_data:
-                etype, emsg = error_data[0]
-                if etype == "quota":
-                    _exhausted_keys.add(api_key)
-                    continue
-                return {"role": "assistant", "content": f"[ERROR] LLM call failed: {emsg}"}
+                _exhausted_keys.add(api_key)
+                continue
 
-            content = result[0].get("content") or ""
-            if content:
-                print(content, flush=True)
             return result[0]
 
     return {"role": "assistant", "content": "[ERROR] Max attempts reached."}

@@ -76,7 +76,7 @@ def list_sessions():
     os.makedirs(SESSION_DIR, exist_ok=True)
     files = [f for f in os.listdir(SESSION_DIR) if f.endswith(".json")]
     if not files:
-        return "(no saved sessions)"
+        return "(no saved sessions)", []
     files.sort(key=lambda f: os.path.getmtime(os.path.join(SESSION_DIR, f)), reverse=True)
     lines = []
     for i, f in enumerate(files, 1):
@@ -93,7 +93,6 @@ def view_session_history(name):
     messages = data.get("messages", [])
     if not messages:
         return "(empty session)"
-    console = Console()
     output = []
     role_label = {"system": "SYSTEM", "user": "USER", "assistant": "JOKI", "tool": "TOOL"}
     role_color = {"system": "dim", "user": "yellow", "assistant": "cyan", "tool": "magenta"}

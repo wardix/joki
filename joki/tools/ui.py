@@ -40,7 +40,11 @@ def handle_ui_screenshot(args):
 
 
 def handle_ui_click(args):
-    x, y = args["x"], args["y"]
+    x = args.get("x")
+    y = args.get("y")
+    if x is None or y is None:
+        return "Error: Parameter 'x' dan 'y' wajib diisi. Contoh: ui_click(x=500, y=300)"
+    x, y = int(x), int(y)
     btn = args.get("button", "left")
     btn_map = {"left": 1, "middle": 2, "right": 3}
     count = args.get("click_count", 1)
@@ -53,7 +57,9 @@ def handle_ui_click(args):
 
 
 def handle_ui_type(args):
-    text = args["text"]
+    text = args.get("text", "")
+    if not text:
+        return "Error: Parameter 'text' wajib diisi. Contoh: ui_type(text=\"Hello World\")"
     safe = text.replace('"', '\\"')
     r = subprocess.run(["xdotool", "type", safe],
                        capture_output=True, text=True, timeout=30)
@@ -63,7 +69,9 @@ def handle_ui_type(args):
 
 
 def handle_ui_keypress(args):
-    keys = args["keys"]
+    keys = args.get("keys", "")
+    if not keys:
+        return "Error: Parameter 'keys' wajib diisi. Contoh: ui_keypress(keys=\"Return\")"
     r = subprocess.run(["xdotool", "key", keys],
                        capture_output=True, text=True, timeout=10)
     if r.returncode == 0:
@@ -72,7 +80,9 @@ def handle_ui_keypress(args):
 
 
 def handle_ui_focus(args):
-    title = args["title"]
+    title = args.get("title", "")
+    if not title:
+        return "Error: Parameter 'title' wajib diisi. Contoh: ui_focus(title=\"Firefox\")"
     r = subprocess.run(["xdotool",
                         "search",
                         "--name",
