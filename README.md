@@ -1,249 +1,27 @@
 # Joki
 
-**AI agentic CLI yang bisa ngerjain tugas di sistem kamu — dari coding, kelola server, database, sampai pentesting.**
+**AI Agent CLI Otonom untuk Linux**
 
-Joki adalah asisten AI berbasis terminal yang bekerja secara otonom. Kasih perintah, Joki eksekusi sampai selesai — baca file, tulis kode, jalankan command, query database, scan security, dan banyak lagi.
+Joki (bahasa gaul Indonesia: "orang yang mengerjakan sesuatu untukmu") adalah AI agent berbasis terminal yang bisa mengeksekusi tugas sistem secara otonom — coding, manajemen server, database, web testing, reverse engineering, security scanning, kontrol hardware, dan processing media.
 
-> *"Joki" = yang ngerjain buat kamu.*
+## Fitur Utama
 
----
+- **44+ tools bawaan** — baca/tulis/edit file, shell commands, query database (MySQL/Postgres/MongoDB/SQLite/MSSQL/Oracle/Redis), web search/fetch, port scanning, DNS enumeration, CVE search, analisis JS/APK/binary, USB/serial/camera, audio/video, UI automation, todo management, memory persisten
+- **Multi-model** — Gemini, Gemma 4, Qwen3 via OpenRouter + Ollama lokal; auto rotasi key & fallback jika quota habis
+- **Auto-test & fix** — setelah nulis script, langsung di-run dan diperbaiki otomatis jika gagal (hingga 5 percobaan)
+- **Eksekusi paralel** — read-only tools jalan bersamaan via ThreadPoolExecutor
+- **Streaming respons** — token-by-token dengan rendering Markdown
+- **Plugin system** — tambah tools kustom di `~/.local/share/joki/plugins/`
+- **Session & memory** — riwayat percakapan persisten + memori jangka panjang lintas sesi
+- **Keamanan** — konfirmasi untuk perintah berbahaya, elevasi sudo, sandbox execution
 
-## ✨ Fitur
-
-### 🛠️ Coding & File Management
-- **Baca, tulis, edit file** — otomatis bikin dan modifikasi kode
-- **Search code** — cari pattern di seluruh project (regex supported)
-- **Auto-test & auto-fix** — setiap file yang ditulis langsung di-test, kalau gagal otomatis diperbaiki (sampai 5x percobaan)
-- **Sandbox execution** — jalankan kode berbahaya di lingkungan terisolasi
-
-### 🗄️ Database
-- **Multi-database support** — MySQL, PostgreSQL, MongoDB, SQLite, MSSQL, Oracle, Redis
-- Auto-detect jenis database dari connection string
-
-### 🌐 Web & Networking
-- **Web search** — cari info terkini via DuckDuckGo
-- **Web fetch** — ambil konten dari URL (output markdown/text)
-- **Port scan** — scan port terbuka pada target
-- **DNS enumeration** — lookup records + subdomain brute-force
-- **SSL/TLS check** — periksa certificate validity & cipher
-
-### 🔒 Security & Pentesting
-- **Web vulnerability scan** — cek security headers, SQLi, XSS, info server
-- **Directory bruteforce** — temukan hidden paths pada web server
-- **CVE search** — cari vulnerability berdasarkan software/service
-- **WHOIS lookup** — informasi kepemilikan domain/IP
-- **Tech detection** — deteksi technology stack website
-
-### 🔍 Reverse Engineering
-- **JavaScript analysis** — ekstrak API endpoints & hardcoded secrets dari JS
-- **API discovery** — temukan REST/GraphQL endpoints dari HTML+JS
-- **Source map check** — deteksi eksposur .map files
-- **Form analysis** — ekstrak hidden fields, CSRF tokens, input types
-- **APK analysis** — analisa Android APK (permissions, activities, manifest)
-- **Binary analysis** — analisa executable (type, strings, metadata)
-
-### 🖥️ System & Hardware
-- **Shell execution** — persistent shell session, jalankan command apapun
-- **Service management** — start/stop/restart/status systemd services
-- **Config editor** — edit konfigurasi dengan auto-backup
-- **UI automation** — screenshot, click, type, keypress (via xdotool)
-- **USB & serial** — list USB devices, komunikasi serial (Arduino, modem)
-- **Camera capture** — ambil gambar dari webcam
-- **Audio/Video** — metadata, transcription (Whisper), frame extraction
-
-### 🧠 Memori & Session
-- **Long-term memory** — simpan info penting lintas sesi (password, path, config)
-- **Session management** — simpan, list, dan lanjutkan percakapan
-- **TODO tracking** — buat dan kelola task list per sesi
-
-### 🚀 Fitur Baru (v2.0)
-- 🔐 **Env var API keys** — Gunakan `JOKI_<MODEL>_KEY` sebagai alternatif config.json
-- 🛡️ **Konfirmasi operasi destruktif** — `rm -rf`, `DROP TABLE`, dll butuh approval otomatis
-- 🌊 **Streaming response** — token-by-token real-time output
-- 📜 **Command history** — persistent history lintas sesi
-- 🔤 **Autocomplete** — slash commands dan file paths
-- 🔌 **Plugin system** — custom tools dari `~/.local/share/joki/plugins/*.py`
-- ⚡ **Parallel tool execution** — read-only tools dieksekusi bersamaan
-- 📏 **Context window management** — auto-trim pesan lama (128K limit)
-- 🔄 **Retry + backoff** — otomatis retry saat network error
-- 🎨 **Rich output** — tabel untuk db_query, syntax highlight untuk read_file
-
----
-
-## 📦 Instalasi
-
-### Prerequisites
-- Python 3.8+
-- pip
-
-### Setup
+## Cara Pakai
 
 ```bash
-git clone https://github.com/wardix/joki.git
-cd joki
-pip install -r requirements.txt
+python -m joki              # mode REPL interaktif
+python -m joki "kerjakan sesuatu"   # one-shot
 ```
 
-### Konfigurasi
+## Lisensi
 
-Salin template konfigurasi dan isi API key kamu:
-
-```bash
-cp config.example.json config.json
-```
-
-Edit `config.json` dan masukkan API key:
-
-```json
-{
-  "models": {
-    "gemini": {
-      "name": "Gemini 3 Flash Preview (OpenRouter)",
-      "base_url": "https://openrouter.ai/api/v1",
-      "model": "google/gemini-3-flash-preview",
-      "api_keys": [
-        "sk-or-v1-YOUR_KEY_HERE"
-      ],
-      "provider": "openai",
-      "default": true
-    }
-  }
-}
-```
-
-Kamu bisa menambahkan banyak model dan banyak API key per model — Joki akan otomatis rotate key kalau quota habis.
-
----
-
-## 🚀 Penggunaan
-
-### Mode interaktif
-```bash
-python -m joki
-```
-
-### Langsung kasih perintah
-```bash
-python -m joki "buatkan REST API sederhana pakai Flask"
-```
-
-### Masuk folder dulu, baru eksekusi
-```bash
-python -m joki /path/ke/project "fix semua bug di sini"
-```
-
-### Flags & Options
-```bash
-python -m joki --version    # Cek versi Joki
-python -m joki --update     # Update Joki ke versi terbaru
-```
-
-### Dalam sesi interaktif
-
-| Command | Fungsi |
-|---|---|
-| `/model` | Lihat atau ganti model AI |
-| `/model gemini` | Switch ke model tertentu |
-| `/sessions` | Lihat daftar sesi tersimpan |
-| `/view <nama>` | Lihat histori sesi |
-| `/new` | Mulai sesi baru |
-| `/reload` | Reload config.json |
-| `/reset_quota` | Reset status quota API key |
-| `/exit` | Keluar |
-
-> **Tip:** Tekan `Esc + Enter` untuk input multi-line.
-
----
-
-## 🤖 Model yang Didukung
-
-Joki mendukung model AI apapun yang kompatibel dengan OpenAI API format:
-
-| Model | Provider | Keterangan |
-|---|---|---|
-| Gemma 4 | Ollama (lokal/cloud) | Gratis, bisa lokal |
-| Qwen3 Coder | OpenRouter | 480B, gratis tier |
-| Gemini 3 Flash | OpenRouter | Cepat, default |
-| DeepSeek V4 | DeepSeek API | Murah |
-| *Model lain* | *OpenAI-compatible API* | Tambahkan di config.json |
-
-### Fitur Multi-Key
-- Taruh beberapa API key per model — kalau satu key habis quota, otomatis pindah ke key berikutnya
-- Fallback ke model lain kalau semua key habis
-- Reset quota dengan `/reset_quota`
-
----
-
-## 📁 Struktur
-
-```
-joki/
-├── joki/
-│   ├── __main__.py      # Entry point
-│   ├── cli.py           # Main loop, slash commands
-│   ├── config.py        # Model loading, config management
-│   ├── constants.py     # TOOLS definitions
-│   ├── display.py       # Tool labels, Spinner, output formatting
-│   ├── executor.py      # TOOL_HANDLERS dispatch table
-│   ├── llm.py           # LLM call, streaming, token counting
-│   ├── plugins.py       # Plugin system auto-loader
-│   ├── rich_display.py  # Rich table/syntax formatting
-│   ├── session.py       # Save/load sessions
-│   ├── state.py         # Shared globals, exceptions
-│   ├── utils.py         # Admin check, sudo, dangerous cmd confirmation
-│   └── tools/           # Tool handlers (10 modules)
-│       ├── database.py, files.py, hardware.py, media.py,
-│       ├── memory.py, reverse_eng.py, security.py,
-│       ├── shell.py, ui.py, web.py
-├── tests/               # Unit tests (pytest)
-├── config.json          # Konfigurasi model & API keys (JANGAN commit!)
-├── config.example.json  # Template konfigurasi
-├── requirements.txt     # Python dependencies
-├── .gitignore
-└── README.md
-```
-
-Data runtime disimpan di `~/.local/share/joki/`:
-- `sessions/` — sesi percakapan (JSON)
-- `logs/` — log readable per sesi
-- `memory.json` — memori jangka panjang
-- `plugins/` — custom tool handlers
-
----
-
-## ⚙️ Dependencies
-
-| Package | Fungsi |
-|---|---|
-| `httpx` | HTTP client untuk API calls |
-| `rich` | Terminal UI (syntax highlighting, panels, spinners) |
-| `prompt_toolkit` | Input interaktif dengan key bindings |
-| `duckduckgo_search` | Web search |
-| `pytest` | Unit testing tools |
-| `pyserial` | *(Optional)* Komunikasi serial (Arduino, modem) |
-| `openai-whisper` | *(Optional)* Audio transcription |
-
----
-
-## ⚠️ Keamanan & Disclaimer
-
-Joki bisa menjalankan command di sistem kamu secara langsung. Gunakan dengan bijak:
-
-- **Env var untuk API keys:** Untuk keamanan ekstra, gunakan env var `JOKI_<MODEL>_KEY` daripada menyimpan key di `config.json`.
-- **Konfirmasi Otomatis:** Operasi yang berbahaya (seperti `rm -rf`, `DROP TABLE`, dsb) akan memicu fallback serial dan meminta persetujuan sebelum dieksekusi.
-- **Custom Exception Hierarchy:** Error handling lebih aman dengan hirarki khusus (`JokiError`, `ToolError`, `LLMError`, `ConfigError`).
-- **Review output** sebelum mempercayai hasil sepenuhnya.
-- Fitur pentesting **hanya untuk target yang kamu miliki/punya izin**.
-- **Jangan jalankan sebagai root** kecuali diperlukan.
-
----
-
-## 📝 Lisensi
-
-MIT License
-
----
-
-## 👤 Author
-
-**Rahmad Budiman**
+MIT

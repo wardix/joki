@@ -18,6 +18,7 @@ TOOL_HANDLERS = {
     "edit_file": handle_edit_file,
     "run_command": handle_run_command,
     "search_code": handle_search_code,
+    "glob": handle_glob,
     "list_dir": handle_list_dir,
     "db_query": handle_db_query,
     "service_control": handle_service_control,
@@ -67,8 +68,12 @@ def execute(name, args):
     handler = TOOL_HANDLERS.get(name)
     if not handler:
         return f"Unknown tool: {name}"
+    if not isinstance(args, dict):
+        args = {}
     try:
         return handler(args)
+    except KeyError as e:
+        return f"Error: Missing required parameter '{e}' for tool '{name}'. LLM harus menyertakan parameter ini."
     except Exception as e:
         return f"Error: {e}"
 

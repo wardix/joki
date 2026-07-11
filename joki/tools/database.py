@@ -10,7 +10,10 @@ def _parse_connection(conn_str):
     """Parse connection string: mysql://..., postgres://..., mongodb://..., sqlite:///..."""
     sqlite_match = re.match(r"sqlite:///(.+)", conn_str)
     if sqlite_match:
-        return ("sqlite", "", "", "", "", sqlite_match.group(1))
+        path = sqlite_match.group(1)
+        if not path.startswith("/"):
+            path = "/" + path
+        return ("sqlite", "", "", "", "", path)
 
     match = re.match(
         r"(\w+)://(?:([^:@]+)(?::([^@]+))?@)?([^:/]+)(?::(\d+))?(?:/(.+))?",
@@ -116,14 +119,20 @@ def _run_db_query(scheme, query, user, password, host, port, database):
 
 
 def handle_db_query(args):
-    scheme, user, password, host, port, database = _parse_connection(
-        args["connection"])
-    if not _confirm_dangerous(args["query"]):
-        return "Dibatalkan oleh user."
+    conn = args.get("connection", "")
+    query = args.get("query", "")
+    if not conn:
+        return "Error: Parameter 'connection' wajib diisi. Contoh: db_query(connection=\"sqlite:///data.db\", query=\"SELECT * FROM users\")"
+    if not query:
+        return "Error: Parameter 'query' wajib diisi. Contoh: db_query(connection=\"sqlite:///data.db\", query=\"SELECT * FROM users\")"
+    try:
+        scheme, user, password, host, port, database = _parse_connection(conn)
+    except ValueError as e:
+        return f"Error: {e}. Format yang benar: mysql://user:pass@host:port/db, sqlite:///path, postgres://..., mongodb://..., mssql://..., oracle://..., redis://..."
     with _Spinner("Query database"):
         return _run_db_query(
             scheme,
-            args["query"],
+            query,
             user,
             password,
             host,

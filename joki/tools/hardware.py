@@ -12,8 +12,12 @@ def handle_usb_list(args):
 
 
 def handle_serial_send(args):
-    port = args["port"]
-    data = args["data"]
+    port = args.get("port", "")
+    data = args.get("data", "")
+    if not port:
+        return "Error: Parameter 'port' wajib diisi. Contoh: serial_send(port=\"/dev/ttyUSB0\", data=\"Hello\")"
+    if not data:
+        return "Error: Parameter 'data' wajib diisi. Contoh: serial_send(port=\"/dev/ttyUSB0\", data=\"Hello\")"
     baud = str(args.get("baud", 9600))
     timeout = args.get("read_timeout", 2)
     try:

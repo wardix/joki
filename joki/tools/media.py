@@ -34,6 +34,7 @@ def handle_camera_capture(args):
 
 
 def handle_audio_info(args):
+    path = args.get("path", "")
     r = subprocess.run(["ffprobe",
                         "-v",
                         "quiet",
@@ -41,7 +42,7 @@ def handle_audio_info(args):
                         "json",
                         "-show_format",
                         "-show_streams",
-                        args["path"]],
+                        path],
                        capture_output=True,
                        text=True,
                        timeout=30)
@@ -50,7 +51,7 @@ def handle_audio_info(args):
     data = json.loads(r.stdout)
     fmt = data.get("format", {})
     streams = data.get("streams", [])
-    lines = [f"  File: {args['path']}"]
+    lines = [f"  File: {path}"]
     lines.append(f"  Duration: {fmt.get('duration', 'N/A')}s")
     lines.append(f"  Size: {fmt.get('size', 'N/A')} bytes")
     lines.append(f"  Bitrate: {fmt.get('bit_rate', 'N/A')} bps")
@@ -65,7 +66,7 @@ def handle_audio_info(args):
 
 
 def handle_audio_transcribe(args):
-    path = args["path"]
+    path = args.get("path", "")
     model_size = args.get("model", "base")
     language = args.get("language", "")
     if not os.path.exists(path):
@@ -89,6 +90,7 @@ def handle_audio_transcribe(args):
 
 
 def handle_video_info(args):
+    path = args.get("path", "")
     r = subprocess.run(["ffprobe",
                         "-v",
                         "quiet",
@@ -96,7 +98,7 @@ def handle_video_info(args):
                         "json",
                         "-show_format",
                         "-show_streams",
-                        args["path"]],
+                        path],
                        capture_output=True,
                        text=True,
                        timeout=30)
@@ -105,7 +107,7 @@ def handle_video_info(args):
     data = json.loads(r.stdout)
     fmt = data.get("format", {})
     streams = data.get("streams", [])
-    lines = [f"  File: {args['path']}"]
+    lines = [f"  File: {path}"]
     lines.append(f"  Duration: {fmt.get('duration', 'N/A')}s")
     lines.append(f"  Size: {fmt.get('size', 'N/A')} bytes")
     lines.append(f"  Bitrate: {fmt.get('bit_rate', 'N/A')} bps")
@@ -137,8 +139,10 @@ def handle_video_info(args):
 
 
 def handle_video_extract(args):
-    path = args["path"]
-    mode = args["mode"]
+    path = args.get("path", "")
+    mode = args.get("mode", "")
+    if not mode:
+        return "Error: Parameter 'mode' wajib diisi. Contoh: video_extract(path=\"video.mp4\", mode=\"thumbnail\")"
     output_dir = args.get("output_dir", "/tmp/joki_video_extract")
     os.makedirs(output_dir, exist_ok=True)
     if mode == "thumbnail":

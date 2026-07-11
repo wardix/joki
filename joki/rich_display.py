@@ -48,7 +48,7 @@ def print_tool_result_rich(name, args, result):
             return
 
     except Exception:
-        pass
+        _console.print("[dim]Warning: Gagal menampilkan rich display, fallback ke plain text[/dim]")
 
     # Fallback to normal stream_print
     stream_print(f"       ```\n{result}\n       ```", delay=0.001)
