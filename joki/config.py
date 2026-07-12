@@ -57,8 +57,8 @@ def _load_models():
                         if val:
                             m["api_keys"] = [val]
                 return models
-        except Exception:
-            pass
+        except Exception as e:
+            _console.print(f"[dim]Warning: Gagal memuat config.json: {e}[/dim]")
     raw = dict(_DEFAULT_MODELS)
     for k, m in raw.items():
         if "api_keys" not in m or not isinstance(m["api_keys"], list):
@@ -102,13 +102,27 @@ def _auto_create_config():
         }
         _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         _CONFIG_PATH.write_text(json.dumps(template, indent=2))
-    except Exception:
-        pass
+    except Exception as e:
+        _console.print(f"[dim]Warning: Gagal membuat config template: {e}[/dim]")
 
 _MODELS = _load_models()
 
 default_model = next((v for v in _MODELS.values() if v.get("default")), next(iter(_MODELS.values())))
 _current_model_config = dict(default_model)
+
+
+# ============================================================
+# LSP CONFIG
+# ============================================================
+def _get_lsp_config():
+    if _CONFIG_PATH.exists():
+        try:
+            data = json.loads(_CONFIG_PATH.read_text())
+            return data.get("lsp", {})
+        except Exception:
+            pass
+    return {}
+
 
 # ============================================================
 # TOOL DEFINITIONS

@@ -4,10 +4,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "read_file",
-            "description": "Read content of an existing file",
+            "description": "Read content of an existing file. Gunakan offset dan limit untuk baca sebagian (mirip head/tail).",
             "parameters": {
                 "type": "object",
-                "properties": {"path": {"type": "string", "description": "Absolute file path"}},
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute file path"},
+                    "offset": {"type": "integer", "description": "Baris awal (1-indexed, default: 1)"},
+                    "limit": {"type": "integer", "description": "Jumlah baris maksimal (default: semua)"}
+                },
                 "required": ["path"]
             }
         }
@@ -31,12 +35,12 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "edit_file",
-            "description": "Search and replace text in an existing file",
+            "description": "Search and replace text in an existing file. Supports fuzzy matching — whitespace differences (spasi, tab, indentasi) otomatis dinormalisasi.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {"type": "string"},
-                    "old_text": {"type": "string", "description": "Exact text to find"},
+                    "old_text": {"type": "string", "description": "Text to replace. Tidak perlu whitespace-eksak — sistem akan fuzzy match."},
                     "new_text": {"type": "string", "description": "Replacement text"}
                 },
                 "required": ["path", "old_text", "new_text"]
@@ -47,10 +51,15 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "run_command",
-            "description": "Run any shell command. Gunakan ini untuk: psql, mongosh, apachectl, nginx, docker, git, apt, systemctl, dsb. PENTING: untuk perintah yang butuh admin/root, WAJIB tambahkan prefix 'sudo ' (Linux/macOS) atau 'runas ' (Windows). Contoh: 'sudo apt update', 'sudo systemctl restart nginx', 'runas net start mysql'.",
+            "description": "Run any shell command. Gunakan untuk: psql, mongosh, apachectl, nginx, docker, git, apt, systemctl, dsb. PENTING: untuk perintah yang butuh admin/root, WAJIB tambahkan prefix 'sudo ' (Linux/macOS) atau 'runas ' (Windows). Contoh: 'sudo apt update', 'sudo systemctl restart nginx', 'runas net start mysql'. Parameter timeout (ms), cwd, dan isInteractive tersedia untuk kontrol lebih lanjut.",
             "parameters": {
                 "type": "object",
-                "properties": {"cmd": {"type": "string", "description": "Shell command"}},
+                "properties": {
+                    "cmd": {"type": "string", "description": "Shell command"},
+                    "timeout": {"type": "integer", "description": "Timeout dalam milidetik (default: 120000, max: 600000 / 10 menit)"},
+                    "cwd": {"type": "string", "description": "Working directory (default: direktori aktif saat ini)"},
+                    "isInteractive": {"type": "boolean", "description": "Jika true, jalankan dalam mode interaktif (default: false)"}
+                },
                 "required": ["cmd"]
             }
         }
@@ -79,6 +88,21 @@ TOOLS = [
                 "type": "object",
                 "properties": {"path": {"type": "string", "description": "Directory path"}},
                 "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "glob",
+            "description": "Find files by glob pattern. Contoh: '**/*.py', 'src/**/*.ts', '*.json'. Support recursive dengan **.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pattern": {"type": "string", "description": "Glob pattern, misal '**/*.py'"},
+                    "path": {"type": "string", "description": "Directory to search (default: current)"}
+                },
+                "required": ["pattern"]
             }
         }
     },
@@ -462,14 +486,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "todo_create",
-            "description": "Buat TODO list untuk task yang akan dikerjakan. Panggil di awal sebelum mulai mengerjakan sesuatu.",
+            "description": "Buat Rencana Pengerjaan untuk task yang akan dikerjakan. Panggil di awal sebelum mulai mengerjakan sesuatu.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "items": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Daftar item TODO (masing-masing berupa string langkah)"
+                        "description": "Daftar item Rencana Pengerjaan (masing-masing berupa string langkah)"
                     }
                 },
                 "required": ["items"]
@@ -480,7 +504,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "todo_done",
-            "description": "Tandai satu atau lebih item TODO sebagai selesai.",
+            "description": "Tandai satu atau lebih item Rencana Pengerjaan sebagai selesai.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -498,7 +522,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "todo_show",
-            "description": "Tampilkan TODO list saat ini.",
+            "description": "Tampilkan Rencana Pengerjaan saat ini.",
             "parameters": {
                 "type": "object",
                 "properties": {}
@@ -677,6 +701,40 @@ TOOLS = [
                     "cmd": {"type": "string", "description": "Perintah shell yang akan dianalisa"}
                 },
                 "required": ["cmd"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "lsp_query",
+            "description": "Dapatkan informasi kode secara semantik via LSP: cari definisi fungsi, referensi, tipe data, atau lihat struktur file. Jauh lebih akurat daripada search_code untuk pertanyaan semantik.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "operation": {
+                        "type": "string",
+                        "enum": ["goToDefinition", "findReferences", "hover", "documentSymbol", "workspaceSymbol"],
+                        "description": "Operasi LSP: goToDefinition=cari definisi, findReferences=cari semua pemanggil, hover=info tipe data, documentSymbol=struktur file, workspaceSymbol=cari simbol di seluruh project"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path file target"
+                    },
+                    "symbol": {
+                        "type": "string",
+                        "description": "Nama simbol/fungsi/variable yang dicari (untuk goToDefinition, findReferences, hover, workspaceSymbol)"
+                    },
+                    "line": {
+                        "type": "integer",
+                        "description": "Baris posisi kursor (0-indexed, optional)"
+                    },
+                    "character": {
+                        "type": "integer",
+                        "description": "Kolom posisi kursor (0-indexed, optional)"
+                    }
+                },
+                "required": ["operation", "file_path"]
             }
         }
     },

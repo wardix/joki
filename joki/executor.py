@@ -12,12 +12,14 @@ from joki.tools.media import *
 from joki.tools.ui import *
 from joki.tools.web import *
 from joki.tools.hardware import *
+from joki.tools.lsp import handle_lsp_query
 TOOL_HANDLERS = {
     "read_file": handle_read_file,
     "write_file": handle_write_file,
     "edit_file": handle_edit_file,
     "run_command": handle_run_command,
     "search_code": handle_search_code,
+    "glob": handle_glob,
     "list_dir": handle_list_dir,
     "db_query": handle_db_query,
     "service_control": handle_service_control,
@@ -61,14 +63,19 @@ TOOL_HANDLERS = {
     "audio_transcribe": handle_audio_transcribe,
     "video_info": handle_video_info,
     "video_extract": handle_video_extract,
+    "lsp_query": handle_lsp_query,
 }
 
 def execute(name, args):
     handler = TOOL_HANDLERS.get(name)
     if not handler:
         return f"Unknown tool: {name}"
+    if not isinstance(args, dict):
+        args = {}
     try:
         return handler(args)
+    except KeyError as e:
+        return f"Error: Missing required parameter '{e}' for tool '{name}'. LLM harus menyertakan parameter ini."
     except Exception as e:
         return f"Error: {e}"
 

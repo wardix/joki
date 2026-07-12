@@ -1,14 +1,15 @@
-import re, threading, sys, time
+import re, threading, sys, time, select
 from rich.console import Group
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich.panel import Panel
 from rich import box
-from joki.state import *
+from joki.state import _joki_cancel, _console, _IS_TTY, _CURRENT_SPINNER
 
 __all__ = [
     "_TOOL_LABEL", "_Spinner", "_numbered", "_clean_latex",
     "stream_print", "Markdown", "Syntax",
+    "_pause_spinner", "_resume_spinner",
 ]
 
 _TOOL_LABEL = {
@@ -43,9 +44,9 @@ _TOOL_LABEL = {
     "form_analyze": "Form analysis",
     "apk_analyze": "APK analysis",
     "binary_analyze": "Binary analysis",
-    "todo_create": "Membuat TODO list",
-    "todo_done": "Menyelesaikan item TODO",
-    "todo_show": "Menampilkan TODO list",
+    "todo_create": "Membuat Rencana Pengerjaan",
+    "todo_done": "Menyelesaikan item Rencana Pengerjaan",
+    "todo_show": "Menampilkan Rencana Pengerjaan",
     "ui_screenshot": "Screenshot UI",
     "ui_click": "Klik mouse",
     "ui_type": "Mengetik teks",
@@ -56,6 +57,7 @@ _TOOL_LABEL = {
     "camera_capture": "Capture kamera",
     "sandbox_run": "Sandbox execution",
     "predict_command": "Prediksi perintah",
+    "lsp_query": "Menanya LSP",
     "audio_info": "Info audio",
     "audio_transcribe": "Transkripsi audio",
     "video_info": "Info video",
@@ -98,7 +100,7 @@ def _is_markdown(text):
             md_patterns += 1
     return md_patterns >= 2
 
-def stream_print(text, delay=0.008):
+def stream_print(text, delay=0.001):
     if not text:
         return
     fence_parts = re.split(r'(```[\s\S]*?```)', text)
@@ -128,6 +130,8 @@ def stream_print(text, delay=0.008):
         raise
 
 def _numbered(text):
+    if not text:
+        return "1: "
     lines = text.splitlines(keepends=True)
     digits = len(str(len(lines)))
     return "".join(f"{i+1:>{digits}}: {l}" for i, l in enumerate(lines))
@@ -139,25 +143,30 @@ class _Spinner:
         self._thread = None
 
     def __enter__(self):
+        global _CURRENT_SPINNER
         self._stop.clear()
+        if not _IS_TTY:
+            sys.stdout.write(f"[{self.message}...]\n")
+            sys.stdout.flush()
+            return self
+        _CURRENT_SPINNER = self
         self._thread = threading.Thread(target=self._spin, daemon=True)
         self._thread.start()
         return self
 
     def _spin(self):
-        fd = sys.stdin.fileno()
-        old = None
-        if _HAS_TTY:
-            try:
-                old = termios.tcgetattr(fd)
-                tty.setraw(fd, termios.TCSANOW)
-            except Exception:
-                old = None
+        try:
+            import termios, tty
+            fd = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+            tty.setraw(fd, termios.TCSANOW)
+        except Exception:
+            old = None
+
+        esc_count = 0
+        last_esc = 0.0
 
         try:
-            esc_count = 0
-            last_esc = 0.0
-
             while not self._stop.is_set():
                 for c in '|/-\\':
                     if self._stop.is_set():
@@ -183,20 +192,37 @@ class _Spinner:
                         else:
                             esc_count = 0
                     else:
-                        time.sleep(0.05)
+                        time.sleep(0.01)
         finally:
             if old is not None:
                 try:
                     termios.tcsetattr(fd, termios.TCSANOW, old)
                 except Exception:
-                    pass
+                    _console.print("[dim]Warning: Gagal mereset terminal attributes[/dim]")
 
     def __exit__(self, *args):
+        global _CURRENT_SPINNER
         self._stop.set()
         if self._thread:
             self._thread.join()
-        sys.stdout.write('\r' + ' ' * (len(self.message) + 10) + '\r')
-        sys.stdout.flush()
+        _CURRENT_SPINNER = None
+        if _IS_TTY:
+            sys.stdout.write('\r' + ' ' * (len(self.message) + 10) + '\r')
+            sys.stdout.flush()
+
+def _pause_spinner():
+    s = _CURRENT_SPINNER
+    if s and s._thread and s._thread.is_alive():
+        s._stop.set()
+        s._thread.join()
+
+def _resume_spinner():
+    s = _CURRENT_SPINNER
+    if s and not (s._thread and s._thread.is_alive()):
+        s._stop.clear()
+        s._thread = threading.Thread(target=s._spin, daemon=True)
+        s._thread.start()
+
 
 _LATEX_REPLACE = {
     r"$\rightarrow$": "→",
