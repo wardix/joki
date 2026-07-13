@@ -1,28 +1,10 @@
-# Config dengan API keys
-config.json
-
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-*.egg
-
-# Virtual environment
 venv/
 .venv/
-env/
-
-# OS
+# config.json sekarang di-track dengan placeholder API keys
+# config.json
+*.log
 .DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Joki data
-/tmp/agent_backups/
+node_modules/
+__pycache__/
+.env
+.pytest_cache/
