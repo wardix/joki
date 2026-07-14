@@ -592,7 +592,7 @@ def main():
                 if sub in _MODELS:
                     cfg = dict(_MODELS[sub])
                     keys = cfg.get("api_keys") or [cfg.get("api_key", "")]
-                    if cfg.get("provider") == "openai" and not any(keys):
+                    if cfg.get("provider") in ("openai", "google") and not any(keys):
                         _console.print(f"[yellow]Peringatan: API key untuk {sub} kosong. Isi 'api_keys' di config.json[/yellow]")
                     _current_model_config = cfg
                     _console.print(f"[green]Model diganti: {cfg['name']} ({cfg['model']})[/green]")

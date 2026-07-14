@@ -87,10 +87,10 @@ def _auto_create_config():
                     "model": "gemma4:31b-cloud",
                     "api_keys": [""],
                     "provider": "openai",
-                    "fallback": "gemini",
+                    "fallback": "gemini-openrouter",
                     "default": True
                 },
-                "gemini": {
+                "gemini-openrouter": {
                     "name": "Gemini 3 Flash Preview (OpenRouter)",
                     "base_url": "https://openrouter.ai/api/v1",
                     "model": "google/gemini-3-flash-preview",
