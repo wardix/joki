@@ -1,29 +1,25 @@
-import os, sys, subprocess, getpass, re
+import getpass
+import os
+import subprocess
+
+from joki import state
+from joki.display import _color_error, _color_warn, _pause_spinner, _resume_spinner
 from joki.state import *
-from joki.display import _numbered
 
 __all__ = [
     "_is_admin", "_prompt_sudo", "_run_elevated",
-    "DANGEROUS_PATTERNS", "_confirm_dangerous",
 ]
 
 def _is_admin():
     """Check if current process has admin/root privileges."""
-    if os.name == 'nt':
-        try:
-            import ctypes
-            return ctypes.windll.shell32.IsUserAnAdmin() != 0
-        except Exception:
-            return False
-    else:
-        try:
-            return os.geteuid() == 0
-        except AttributeError:
-            return True
+    try:
+        return os.geteuid() == 0
+    except AttributeError:
+        return True
 
 
 def _prompt_sudo():
-    """Prompt user for admin password and cache it for the session.
+    """Prompt user for sudo password and cache it for the session.
     Returns the password string, or '__ROOT__' if already admin, or None on cancel.
     """
     global _SUDO_PASSWORD
@@ -34,75 +30,84 @@ def _prompt_sudo():
         _SUDO_PASSWORD = "__ROOT__"
         return _SUDO_PASSWORD
 
+    if state._TUI_ACTIVE:
+        return _prompt_sudo_tui()
+
     try:
-        _console.print()
-        if os.name == 'nt':
-            _console.print("[yellow]Autentikasi administrator Windows diperlukan:[/yellow]")
-            _SUDO_PASSWORD = getpass.getpass("  Password Administrator: ")
-            r = subprocess.run(
-                f'runas /user:Administrator "cmd /c echo authenticated" 2>&1',
-                shell=True, input=_SUDO_PASSWORD + "\n",
-                capture_output=True, text=True, timeout=10
-            )
-            err_upper = (r.stdout + r.stderr).upper()
-            if "LOGON FAILURE" in err_upper or "1326" in err_upper or "PASSWORD OR USERNAME" in err_upper:
-                _console.print("[red]  Password salah![/red]")
+        _pause_spinner()
+        _MONITOR_PAUSED.set()
+        try:
+            _console.print("Autentikasi administrator (sudo) diperlukan:")
+            while True:
+                _SUDO_PASSWORD = getpass.getpass("  Password: ")
+                r = subprocess.run(
+                    ["sudo", "-S", "-v"],
+                    input=_SUDO_PASSWORD + "\n",
+                    capture_output=True, text=True, timeout=10, check=False
+                )
+                if r.returncode == 0:
+                    break
+                _console.print("  Password salah!")
                 _SUDO_PASSWORD = None
-                return _prompt_sudo()
-            _console.print("[green]  Autentikasi berhasil.[/green]")
-        else:
-            _console.print("[yellow]Autentikasi administrator (sudo) diperlukan:[/yellow]")
-            _SUDO_PASSWORD = getpass.getpass("  Password: ")
-            r = subprocess.run(
-                ["sudo", "-S", "-v"],
-                input=_SUDO_PASSWORD + "\n",
-                capture_output=True, text=True, timeout=10
-            )
-            if r.returncode != 0:
-                _console.print("[red]  Password salah![/red]")
-                _SUDO_PASSWORD = None
-                return _prompt_sudo()
-            _console.print("[green]  Autentikasi berhasil.[/green]")
+            _console.print("  Autentikasi berhasil.")
+        finally:
+            _MONITOR_PAUSED.clear()
+        _resume_spinner()
         return _SUDO_PASSWORD
     except (EOFError, KeyboardInterrupt):
-        _console.print("\n[yellow]  Autentikasi dibatalkan.[/yellow]")
+        _console.print(f"\n[{_color_warn()}]  Autentikasi dibatalkan.[/{_color_warn()}]")
         _SUDO_PASSWORD = None
         return None
-    except Exception:
+    except Exception:  # noqa: BLE001
         _SUDO_PASSWORD = None
         return None
 
 
-def _run_elevated(cmd, password):
-    """Run command with admin/root privileges using cached password."""
-    if os.name == 'nt':
-        if password == "__ROOT__":
-            return subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
-        else:
-            return subprocess.run(
-                f'runas /user:Administrator "cmd /c {cmd}"',
-                shell=True, input=password + "\n",
-                capture_output=True, text=True, timeout=60
-            )
-    else:
-        return subprocess.run(
-            f"sudo -S {cmd}",
-            shell=True, input=password + "\n",
-            capture_output=True, text=True, timeout=60
+def _prompt_sudo_tui():
+    """Prompt sudo lewat dialog TUI (worker thread) — validasi tetap pakai
+    `sudo -S -v` sehingga credential ter-cache di timestamp sudo."""
+    global _SUDO_PASSWORD
+    message = "Masukkan password administrator (sudo):"
+    while True:
+        password = _request_tui_password(message)
+        if password is None:
+            _console.print(f"[{_color_warn()}]  Autentikasi dibatalkan.[/{_color_warn()}]")
+            return None
+        if not password:
+            message = f"[{_color_error()}]Password tidak boleh kosong.[/{_color_error()}] Password administrator (sudo):"
+            continue
+        r = subprocess.run(
+            ["sudo", "-S", "-v"],
+            input=password + "\n",
+            capture_output=True, text=True, timeout=10, check=False
         )
-
-DANGEROUS_PATTERNS = [
-    r"\brm\s+-rf\b",
-    r"\bDROP\s+(TABLE|DATABASE)\b",
-    r"\bdd\b.*of=",
-    r"\bmkfs\b",
-]
+        if r.returncode == 0:
+            _SUDO_PASSWORD = password
+            return password
+        message = f"[{_color_error()}]Password salah, coba lagi.[/{_color_error()}] Password administrator (sudo):"
 
 
-def _confirm_dangerous(cmd):
-    if any(re.search(p, cmd, re.I) for p in DANGEROUS_PATTERNS):
-        _console.print(f"[yellow]⚠ Operasi berbahaya terdeteksi:[/yellow] {cmd}")
-        return input("Lanjutkan? (y/N): ").lower() == 'y'
-    return True
-
+def _run_elevated(cmd, password, timeout=60):
+    """Run command with root privileges using cached password.
+    Returns (stdout+stderr) string, or error message on failure."""
+    try:
+        if password == "__ROOT__":
+            r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, check=False)
+        else:
+            r = subprocess.run(
+                f"sudo -S {cmd}",
+                shell=True, input=password + "\n",
+                capture_output=True, text=True, timeout=timeout, check=False
+            )
+        output = (r.stdout or "") + (r.stderr or "")
+        if not output.strip():
+            output = "(no output)"
+        if r.returncode == 0:
+            return f"[ELEVATED] SUCCESS\n{output.strip()}"
+        else:
+            return f"[ELEVATED] FAILED (exit {r.returncode})\n{output.strip()}"
+    except subprocess.TimeoutExpired:
+        return f"[ELEVATED] TIMEOUT (>{timeout}s)"
+    except Exception as e:  # noqa: BLE001
+        return f"[ELEVATED] Error: {e}"
 

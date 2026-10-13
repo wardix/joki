@@ -1,7 +1,9 @@
-import os, json
+import json
+import os
+
+from joki.config import _get_data_dir
 from joki.state import *
 from joki.utils import *
-from joki.config import _get_data_dir
 
 
 def _memory_path(name=None):
@@ -24,7 +26,7 @@ def _save_memory(data, name=None):
         json.dump(data, f, indent=2)
 
 # ============================================================
-# TODO LIST
+# RENCANA PENGERJAAN
 # ============================================================
 
 
@@ -53,12 +55,33 @@ def _save_todo(items):
 # TOOL EXECUTOR
 # ============================================================
 
+_SENSITIVE_KEY_WORDS = (
+    "password", "passwd", "secret", "token",
+    "api_key", "apikey", "credential", "auth",
+)
+
+
+def _is_sensitive_key(key):
+    k = (key or "").lower()
+    return any(w in k for w in _SENSITIVE_KEY_WORDS)
+
 
 def handle_memory_store(args):
+    key = args.get("key", "")
+    value = args.get("value", "")
+    if not key:
+        return "Error: Parameter 'key' wajib diisi. Contoh: memory_store(key=\"db_password\", value=\"secret123\")"
+    if not value:
+        return "Error: Parameter 'value' wajib diisi. Contoh: memory_store(key=\"db_password\", value=\"secret123\")"
+    if _is_sensitive_key(key):
+        return (f"Error: key '{key}' terdeteksi berisi credential "
+                f"(password/secret/token/api_key). Jangan simpan credential di "
+                f"memory_store — file memory disimpan sebagai plaintext. "
+                f"Gunakan environment variable atau config untuk credential.")
     mem = _load_memory()
-    mem[args["key"]] = args["value"]
+    mem[key] = value
     _save_memory(mem)
-    return f"Memory saved: {args['key']}"
+    return f"Memory saved: {key}"
 
 
 def handle_memory_recall(args):
@@ -77,23 +100,30 @@ def handle_memory_recall(args):
 
 
 def handle_memory_forget(args):
+    key = args.get("key", "")
+    if not key:
+        return "Error: Parameter 'key' wajib diisi. Contoh: memory_forget(key=\"db_password\")"
     mem = _load_memory()
-    if args["key"] in mem:
-        del mem[args["key"]]
+    if key in mem:
+        del mem[key]
         _save_memory(mem)
-        return f"Memory forgotten: {args['key']}"
-    return f"Memory '{args['key']}' not found"
+        return f"Memory forgotten: {key}"
+    return f"Memory '{key}' not found"
 
 
 def handle_todo_create(args):
-    items = args["items"]
+    items = args.get("items", [])
+    if not items or not isinstance(items, list):
+        return "Error: Parameter 'items' wajib diisi sebagai array. Contoh: todo_create(items=[\"Buat file\", \"Test\"])"
     _save_todo(items)
     lines = [f"  {i+1}. [ ] {item}" for i, item in enumerate(items)]
-    return f"TODO list dibuat ({len(items)} item):\n" + "\n".join(lines)
+    return f"Rencana Pengerjaan dibuat ({len(items)} item):\n" + "\n".join(lines)
 
 
 def handle_todo_done(args):
-    indices = args["indices"]
+    indices = args.get("indices", [])
+    if not indices or not isinstance(indices, list):
+        return "Error: Parameter 'indices' wajib diisi sebagai array. Contoh: todo_done(indices=[1, 2])"
     items = _load_todo()
     marked = []
     for idx in indices:
@@ -108,16 +138,16 @@ def handle_todo_done(args):
     if indices and max(indices) == len(items):
         last_item = items[-1]
         if "Verifikasi" in last_item:
-            visual_trigger = "\n\n[SISTEM] Deteksi item 'Verifikasi' di akhir TODO. Menyiapkan validasi visual..."
+            visual_trigger = "\n\n[SISTEM] Deteksi item 'Verifikasi' di akhir Rencana Pengerjaan. Menyiapkan validasi visual..."
 
-    return f"Item TODO {' dan '.join(marked)} selesai! {visual_trigger}\n" + "\n".join(
+    return f"Item Rencana Pengerjaan {' dan '.join(marked)} selesai! {visual_trigger}\n" + "\n".join(
         f"  {i+1}. {item}" for i, item in enumerate(items))
 
 
 def handle_todo_show(args):
     items = _load_todo()
     if not items:
-        return "(TODO list kosong)"
+        return "(Rencana Pengerjaan kosong)"
     lines = [f"  {i+1}. {item}" for i, item in enumerate(items)]
     done = sum(1 for i in items if i.startswith("✅"))
-    return f"TODO list ({done}/{len(items)} selesai):\n" + "\n".join(lines)
+    return f"Rencana Pengerjaan ({done}/{len(items)} selesai):\n" + "\n".join(lines)

@@ -1,0 +1,31 @@
+httpx>=0.27,<1.0
+prompt_toolkit>=3.0,<4.0
+rich>=15.0,<16.0
+textual>=8.2.8,<9.0
+pyte>=0.8.0,<1.0
+duckduckgo_search>=6.0
+html2text>=2024.0
+pytest>=7.0
+
+# Document & Office files
+python-docx>=1.2
+openpyxl>=3.1
+python-pptx>=1.0
+pdfplumber>=0.11
+PyMuPDF>=1.28
+
+# Web scraping & parsing
+cloudscraper>=1.2
+trafilatura>=2.0
+beautifulsoup4>=4.12
+lxml>=4.9
+
+ruff>=0.9
+
+# Skill frontmatter parsing
+PyYAML>=6.0
+
+# Optional (uncomment if needed)
+# pyserial>=3.5
+# openai-whisper>=20231117
+# pyautogui>=0.9
