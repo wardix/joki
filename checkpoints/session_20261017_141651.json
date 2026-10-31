@@ -1,0 +1,10 @@
+{
+ "original_request": "http://localhost/gtd/login, menampilkan pesan ErrorException HTTP 500 Internal Server Error - tempnam(): file created in the system's temporary directory",
+ "files_created": [],
+ "files_modified": [],
+ "current_step": "memanggil shell",
+ "progress_notes": [],
+ "last_context_inject": 0,
+ "decisions": [],
+ "facts": []
+}

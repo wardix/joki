@@ -1,11 +1,16 @@
-import os
-import sys
 import glob
 import importlib.util
-from joki.constants import TOOLS
-from joki.executor import TOOL_HANDLERS
+import os
+import sys
+
+from rich.markup import escape
+
 from joki.config import _get_data_dir
-from joki.display import stream_print
+from joki.constants import TOOLS
+from joki.display import _color_error
+from joki.executor import TOOL_HANDLERS
+from joki.state import _console
+
 
 def _load_plugins():
     plugin_dir = os.path.join(_get_data_dir(), "plugins")
@@ -38,5 +43,5 @@ def _load_plugins():
                             
                     TOOLS.append(tool_def)
                     TOOL_HANDLERS[tool_name] = mod.handle
-        except Exception as e:
-            stream_print(f"[red]Gagal memuat plugin {f}: {e}[/red]\n")
+        except Exception as e:  # noqa: BLE001
+            _console.print(f"[{_color_error()}]Gagal memuat plugin {f}: {escape(str(e))}[/{_color_error()}]")

@@ -1,0 +1,14 @@
+{
+ "original_request": "saya mau kamu menjalankan backend dan frontend project ini",
+ "files_created": [],
+ "files_modified": [],
+ "current_step": "memanggil run_command",
+ "progress_notes": [],
+ "last_context_inject": 0,
+ "decisions": [],
+ "facts": [
+  "read /var/www/html/tokoku/backend/package.json",
+  "read /var/www/html/tokoku/frontend/package.json",
+  "read /var/www/html/tokoku/backend/.env.local"
+ ]
+}

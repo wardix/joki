@@ -1,0 +1,10 @@
+{
+ "original_request": "jalankan project",
+ "files_created": [],
+ "files_modified": [],
+ "current_step": "Base model berjalan normal. Masalah ada di **LoRA adapter** atau **chat template** di inference script. Cek adapter:",
+ "progress_notes": [],
+ "last_context_inject": 0,
+ "decisions": [],
+ "facts": []
+}

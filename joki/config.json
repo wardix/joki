@@ -1,102 +1,129 @@
 {
+  "theme": "dark",
+  "brave_api_key": "ISI_API_KEY_BRAVE_MU",
+  "tinyfish_api_key": "API-KEY",
+  "tavily_api_key": "API-KEY",
+  "judge_model": "nemotron-3.5-super-vl-120b-a12b-nvidia",
   "models": {
-    "gemma4": {
-      "name": "Gemma 4 (31B Cloud)",
-      "base_url": "https://ollama.com/v1",
-      "model": "gemma4:31b-cloud",
+    "nemotron-3-ultra-550b-a55b-nvidia": {
+      "name": "Nemotron 3 Ultra 550B (NVIDIA NIM)",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
       "api_keys": [
-        "YOUR_GEMMA4_API_KEY_1",
-        "YOUR_GEMMA4_API_KEY_2",
-        "YOUR_GEMMA4_API_KEY_3",
-        "YOUR_GEMMA4_API_KEY_4",
-        "YOUR_GEMMA4_API_KEY_5",
-        "YOUR_GEMMA4_API_KEY_6"
+        "API-KEY",
+        "API-KEY",
+        "API-KEY",
+        "API-KEY",
+        "API-KEY"
+      ],
+      "provider": "openai",
+      "max_tokens": 16384,
+      "temperature": 0.5,
+      "top_p": 0.9,
+      "extra_body": {
+        "chat_template_kwargs": {
+          "enable_thinking": true,
+          "medium_effort": true,
+          "force_nonempty_content": true
+        }
+      },
+      "fallback": "nemotron-3.5-super-vl-120b-a12b-nvidia",
+      "default": true,
+      "max_iterations": 40,
+      "dry_threshold": 12,
+      "context_window": 1000000,
+      "effective_context": 262144
+    },
+    "nemotron-3-ultra-550b-a55b-free-baseten": {
+      "name": "NVIDIA Nemotron 3 Ultra 550B (Free - BaseTen)",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "api_keys": [
+        "API-KEY",
+        "API-KEY",
+        "API-KEY",
+        "API-KEY",
+        "API-KEY"
       ],
       "provider": "openai",
       "max_tokens": 32768,
-      "default": true
+      "temperature": 0.5,
+      "top_p": 0.9,
+      "fallback": "nemotron-3.5-super-vl-120b-a12b-nvidia",
+      "default": false,
+      "max_iterations": 0,
+      "dry_threshold": 12,
+      "context_window": 1000000
     },
-    "qwen3-coder": {
-      "name": "Qwen3 Coder 480B (OpenRouter)",
-      "base_url": "https://openrouter.ai/api/v1",
-      "model": "qwen/qwen3-coder:free",
+    "nemotron-3.5-super-vl-120b-a12b-nvidia": {
+      "name": "Nemotron 3.5 Super VL 120B (NVIDIA NIM)",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
       "api_keys": [
-        "YOUR_OPENROUTER_API_KEY_1",
-        "YOUR_OPENROUTER_API_KEY_2",
-        "YOUR_OPENROUTER_API_KEY_3",
-        "YOUR_OPENROUTER_API_KEY_4",
-        "YOUR_OPENROUTER_API_KEY_5"
+        "API-KEY",
+        "API-KEY",
+        "API-KEY",
+        "API-KEY",
+        "API-KEY"
       ],
       "provider": "openai",
-      "max_tokens": 65536,
-      "fallback": "gemma4",
-      "default": false
+      "max_tokens": 16384,
+      "temperature": 0.5,
+      "top_p": 0.9,
+      "extra_body": {
+        "chat_template_kwargs": {
+          "enable_thinking": true,
+          "medium_effort": true,
+          "force_nonempty_content": true
+        }
+      },
+      "default": false,
+      "max_iterations": 40,
+      "dry_threshold": 12,
+      "context_window": 1000000,
+      "effective_context": 262144
+    },
+    "minimax-m3.1-flash": {
+      "name": "MiniMax M3.1 Flash (NVIDIA NIM)",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "model": "minimaxai/minimax-m3.1-flash",
+      "api_keys": [
+        "API-KEY",
+        "API-KEY",
+        "API-KEY",
+        "API-KEY",
+        "API-KEY"
+      ],
+      "provider": "openai",
+      "max_tokens": 16384,
+      "temperature": 1,
+      "top_p": 0.95,
+      "extra_body": {
+        "chat_template_kwargs": {
+          "enable_thinking": true,
+          "medium_effort": true,
+          "force_nonempty_content": true
+        }
+      },
+      "default": false,
+      "max_iterations": 40,
+      "dry_threshold": 12,
+      "context_window": 1000000,
+      "effective_context": 262144
     },
     "ollama-local": {
       "name": "Ollama Lokal (localhost)",
       "base_url": "http://localhost:11434",
       "model": "llama3",
-      "api_keys": [""],
+      "api_keys": [
+        ""
+      ],
       "provider": "ollama",
       "max_tokens": 8192,
-      "default": false
-    },
-    "gemini-openrouter": {
-      "name": "Gemini 3 Flash Preview (OpenRouter)",
-      "base_url": "https://openrouter.ai/api/v1",
-      "model": "google/gemini-3-flash-preview",
-      "api_keys": [
-        "YOUR_OPENROUTER_API_KEY_1",
-        "YOUR_OPENROUTER_API_KEY_2",
-        "YOUR_OPENROUTER_API_KEY_3",
-        "YOUR_OPENROUTER_API_KEY_4",
-        "YOUR_OPENROUTER_API_KEY_5"
-      ],
-      "provider": "openai",
-      "max_tokens": 32768,
-      "fallback": "gemma4",
-      "default": false
-    },
-    "gemini-native": {
-      "name": "Gemini 3.5 Flash (Google AI)",
-      "base_url": "https://generativelanguage.googleapis.com/v1beta",
-      "model": "gemini-3.5-flash",
-      "api_keys": [
-        "YOUR_GEMINI_API_KEY_1",
-        "YOUR_GEMINI_API_KEY_2",
-        "YOUR_GEMINI_API_KEY_3",
-        "YOUR_GEMINI_API_KEY_4",
-        "YOUR_GEMINI_API_KEY_5",
-        "YOUR_GEMINI_API_KEY_6",
-        "YOUR_GEMINI_API_KEY_7"
-      ],
-      "provider": "google",
-      "max_tokens": 65536,
-      "fallback": "gemma4",
-      "default": false
-    }
-  },
-  "lsp": {
-    "enabled": true,
-    "preInject": {
-      "enabled": true,
-      "triggers": ["error", "bug", "fix", "perbaiki", "gagal", "rusak", "salah", "tidak jalan", "crash", "exception"],
-      "maxFiles": 50,
-      "maxDiagnostics": 100
-    },
-    "servers": {
-      "python": {
-        "command": ["pyright-langserver", "--stdio"]
-      },
-      "typescript": {
-        "command": ["typescript-language-server", "--stdio"]
-      },
-      "go": {
-        "command": ["gopls"]
-      },
-      "rust": {
-        "command": ["rust-analyzer"]
-      }
+      "default": false,
+      "max_iterations": 0,
+      "dry_threshold": 12,
+      "context_window": 8192
     }
   }
 }

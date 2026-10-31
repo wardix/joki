@@ -1,39 +1,54 @@
-import os
 import json
+import os
 import subprocess
+import sys
+import tempfile
+
 from joki.display import _Spinner
 
 
+def _camera_capture_mac(path, resolution):
+    subprocess.run(["ffmpeg", "-f", "avfoundation", "-i", "0:0",
+                    "-vframes", "1", "-s", resolution, "-y", path],
+                   capture_output=True, text=True, timeout=15, check=False)
+    return os.path.exists(path) and os.path.getsize(path) > 0
+
+
+def _camera_capture_linux(device, path, resolution):
+    subprocess.run(["fswebcam", "-d", device, "-r", resolution, path],
+                   capture_output=True, text=True, timeout=15, check=False)
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return True
+    subprocess.run(["ffmpeg", "-f", "v4l2", "-i", device,
+                    "-vframes", "1", "-s", resolution, "-y", path],
+                   capture_output=True, text=True, timeout=15, check=False)
+    return os.path.exists(path) and os.path.getsize(path) > 0
+
+
 def handle_camera_capture(args):
-    device = args.get("device", "/dev/video0")
-    path = args.get("path", "/tmp/joki_cam.jpg")
+    path = args.get("path", os.path.join(tempfile.gettempdir(), "joki_cam.jpg"))
     resolution = args.get("resolution", "640x480")
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
-    # Try fswebcam first, then ffmpeg
-    r = subprocess.run(["fswebcam", "-d", device, "-r", resolution, path],
-                       capture_output=True, text=True, timeout=15)
-    if os.path.exists(path) and os.path.getsize(path) > 0:
+    if sys.platform == 'darwin':
+        ok = _camera_capture_mac(path, resolution)
+        hint = "Install ffmpeg: brew install ffmpeg"
+    else:
+        device = args.get("device", "/dev/video0")
+        ok = _camera_capture_linux(device, path, resolution)
+        hint = "Install fswebcam: sudo apt install fswebcam"
+    if ok:
         return f"Camera capture saved: {path} ({os.path.getsize(path)} bytes)"
-    r2 = subprocess.run(["ffmpeg",
-                         "-f",
-                         "v4l2",
-                         "-i",
-                         device,
-                         "-vframes",
-                         "1",
-                         "-s",
-                         resolution,
-                         "-y",
-                         path],
-                        capture_output=True,
-                        text=True,
-                        timeout=15)
-    if os.path.exists(path) and os.path.getsize(path) > 0:
-        return f"Camera capture saved: {path} ({os.path.getsize(path)} bytes)"
-    return "Gagal capture kamera. Install fswebcam: sudo apt install fswebcam"
+    return f"Gagal capture kamera. {hint}"
+
+
+def _ffmpeg_hint():
+    if sys.platform == 'darwin':
+        return "Install ffmpeg: brew install ffmpeg"
+    return "Install ffmpeg: sudo apt install ffmpeg"
 
 
 def handle_audio_info(args):
+    path = args.get("path", "")
     r = subprocess.run(["ffprobe",
                         "-v",
                         "quiet",
@@ -41,16 +56,17 @@ def handle_audio_info(args):
                         "json",
                         "-show_format",
                         "-show_streams",
-                        args["path"]],
+                        path],
                        capture_output=True,
                        text=True,
-                       timeout=30)
+                       timeout=30, check=False)
     if r.returncode != 0:
-        return f"Error: {r.stderr or 'ffprobe not found. Install: sudo apt install ffmpeg'}"
+        hint = _ffmpeg_hint()
+        return f"Error: {r.stderr or f'ffprobe not found. {hint}'}"
     data = json.loads(r.stdout)
     fmt = data.get("format", {})
     streams = data.get("streams", [])
-    lines = [f"  File: {args['path']}"]
+    lines = [f"  File: {path}"]
     lines.append(f"  Duration: {fmt.get('duration', 'N/A')}s")
     lines.append(f"  Size: {fmt.get('size', 'N/A')} bytes")
     lines.append(f"  Bitrate: {fmt.get('bit_rate', 'N/A')} bps")
@@ -65,7 +81,7 @@ def handle_audio_info(args):
 
 
 def handle_audio_transcribe(args):
-    path = args["path"]
+    path = args.get("path", "")
     model_size = args.get("model", "base")
     language = args.get("language", "")
     if not os.path.exists(path):
@@ -81,7 +97,10 @@ def handle_audio_transcribe(args):
     text = result.get("text", "").strip()
     detected = result.get("language", "")
     segments = result.get("segments", [])
-    duration = segments[-1]["end"] if segments else 0
+    try:
+        duration = segments[-1]["end"] if segments else 0
+    except (IndexError, KeyError):
+        duration = 0
     info = f"  Bahasa: {detected.upper() if detected else 'auto'}"
     info += f"\n  Durasi: {duration:.1f}s" if duration else ""
     info += f"\n  Teks ({len(text)} chars):\n{text}"
@@ -89,6 +108,7 @@ def handle_audio_transcribe(args):
 
 
 def handle_video_info(args):
+    path = args.get("path", "")
     r = subprocess.run(["ffprobe",
                         "-v",
                         "quiet",
@@ -96,16 +116,17 @@ def handle_video_info(args):
                         "json",
                         "-show_format",
                         "-show_streams",
-                        args["path"]],
+                        path],
                        capture_output=True,
                        text=True,
-                       timeout=30)
+                       timeout=30, check=False)
     if r.returncode != 0:
-        return f"Error: {r.stderr or 'ffprobe not found. Install: sudo apt install ffmpeg'}"
+        hint = _ffmpeg_hint()
+        return f"Error: {r.stderr or f'ffprobe not found. {hint}'}"
     data = json.loads(r.stdout)
     fmt = data.get("format", {})
     streams = data.get("streams", [])
-    lines = [f"  File: {args['path']}"]
+    lines = [f"  File: {path}"]
     lines.append(f"  Duration: {fmt.get('duration', 'N/A')}s")
     lines.append(f"  Size: {fmt.get('size', 'N/A')} bytes")
     lines.append(f"  Bitrate: {fmt.get('bit_rate', 'N/A')} bps")
@@ -137,15 +158,17 @@ def handle_video_info(args):
 
 
 def handle_video_extract(args):
-    path = args["path"]
-    mode = args["mode"]
-    output_dir = args.get("output_dir", "/tmp/joki_video_extract")
+    path = args.get("path", "")
+    mode = args.get("mode", "")
+    if not mode:
+        return "Error: Parameter 'mode' wajib diisi. Contoh: video_extract(path=\"video.mp4\", mode=\"thumbnail\")"
+    output_dir = args.get("output_dir", os.path.join(tempfile.gettempdir(), "joki_video_extract"))
     os.makedirs(output_dir, exist_ok=True)
     if mode == "thumbnail":
         out = os.path.join(output_dir, "thumbnail.jpg")
         r = subprocess.run(
             ["ffmpeg", "-i", path, "-vframes", "1", "-q:v", "2", "-y", out],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=30, check=False
         )
         if os.path.exists(out):
             return f"Thumbnail saved: {out} ({os.path.getsize(out)} bytes)"
@@ -166,7 +189,7 @@ def handle_video_extract(args):
                             out],
                            capture_output=True,
                            text=True,
-                           timeout=30)
+                           timeout=30, check=False)
         if os.path.exists(out):
             return f"Frame at {ts}s saved: {out} ({os.path.getsize(out)} bytes)"
         return f"Error: {r.stderr}"
@@ -175,7 +198,7 @@ def handle_video_extract(args):
         out_pattern = os.path.join(output_dir, "frame_%04d.jpg")
         r = subprocess.run(
             ["ffmpeg", "-i", path, "-vf", f"fps={fps}", "-q:v", "2", "-y", out_pattern],
-            capture_output=True, text=True, timeout=60
+            capture_output=True, text=True, timeout=60, check=False
         )
         count = len([f for f in os.listdir(output_dir)
                     if f.startswith("frame_")])

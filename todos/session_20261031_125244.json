@@ -1,0 +1,7 @@
+[
+  "\u2705 Tambah parameter task_type dan fungsi _classify_task di verifier.py",
+  "\u2705 Modifikasi deterministic_check untuk handle non-coding task",
+  "\u2705 Update verify_completion signature dan pass task_type",
+  "\u2705 Update cli.py untuk kirim task_type ke verify_completion",
+  "\u2705 Test verifikasi dengan tugas coding dan non-coding"
+]
