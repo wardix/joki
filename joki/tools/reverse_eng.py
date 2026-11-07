@@ -1,12 +1,19 @@
 import os
-import subprocess
 import re
+import subprocess
+import sys
+
 import httpx
+
+from joki.state import _console
 
 
 def handle_js_analyze(args):
-    url = args["url"].rstrip("/")
+    url = args.get("url", "").rstrip("/")
+    if not url:
+        return "Error: Parameter 'url' wajib diisi. Contoh: js_analyze(url=\"https://example.com\")"
     extract = args.get("extract", "all")
+    _verify = not args.get("skip_ssl_verify", False)
     output = []
     js_contents = []
     raw_js = ""
@@ -14,12 +21,12 @@ def handle_js_analyze(args):
     if url.endswith(".js"):
         try:
             rr = httpx.get(
-                url, timeout=15, verify=False, headers={
+                url, timeout=15, verify=_verify, headers={
                     "User-Agent": "Mozilla/5.0"})
             if rr.status_code == 200:
                 raw_js = rr.text
                 js_contents.append((url.rsplit("/", 1)[-1], raw_js))
-        except Exception:
+        except Exception:  # noqa: BLE001
             return f"[JS] Error fetching JS file: {url}"
     else:
         try:
@@ -27,7 +34,7 @@ def handle_js_analyze(args):
                 url,
                 timeout=15,
                 follow_redirects=True,
-                verify=False,
+                verify=_verify,
                 headers={
                     "User-Agent": "Mozilla/5.0"})
             if r.status_code != 200:
@@ -49,14 +56,14 @@ def handle_js_analyze(args):
                     url.rstrip("/") + "/" + src.lstrip("/"))
                 try:
                     rr = httpx.get(
-                        js_url, timeout=10, verify=False, headers={
+                        js_url, timeout=10, verify=_verify, headers={
                             "User-Agent": "Mozilla/5.0"})
                     if rr.status_code == 200:
                         name = js_url.rsplit("/", 1)[-1][:40]
                         js_contents.append((name, rr.text))
-                except Exception:
-                    pass
-        except Exception as e:
+                except Exception:  # noqa: BLE001
+                    _console.print(f"[dim]Warning: Gagal fetch JS: {js_url}[/dim]")
+        except Exception as e:  # noqa: BLE001
             return f"[JS] Error: {e}"
 
     if not js_contents:
@@ -67,7 +74,7 @@ def handle_js_analyze(args):
     all_js = "\n".join(js for _, js in js_contents)
 
     if extract in ("endpoints", "all"):
-        output.append(f"\n  [API Endpoints / URLs]")
+        output.append("\n  [API Endpoints / URLs]")
         url_patterns = [
             r'["\'](https?://[^"\']+)["\']',
             r'["\'](/[a-zA-Z][^"\']*(?:api|v[0-9]+|rest|graphql|endpoint|webhook)[^"\']*)["\']',
@@ -99,10 +106,10 @@ def handle_js_analyze(args):
             if len(found_urls) > 40:
                 output.append(f"    ... and {len(found_urls) - 40} more")
         else:
-            output.append(f"    (no endpoints found)")
+            output.append("    (no endpoints found)")
 
     if extract in ("secrets", "all"):
-        output.append(f"\n  [Potential Secrets / Credentials]")
+        output.append("\n  [Potential Secrets / Credentials]")
         secret_patterns = [
             (r'api[Kk]ey["\']?\s*[:=]\s*["\']([^"\']{8,})["\']', "API Key"),
             (r'api_key["\']?\s*[:=]\s*["\']([^"\']{8,})["\']', "API Key"),
@@ -137,14 +144,13 @@ def handle_js_analyze(args):
                     secrets_found.append(f"    [{label}] {val[:80]}")
 
         if secrets_found:
-            for s in secrets_found[:20]:
-                output.append(s)
+            output.extend(secrets_found[:20])
             if len(secrets_found) > 20:
                 output.append(f"    ... and {len(secrets_found) - 20} more")
         else:
-            output.append(f"    (no secrets detected)")
+            output.append("    (no secrets detected)")
 
-        output.append(f"\n  [Interesting Keywords]")
+        output.append("\n  [Interesting Keywords]")
         keywords = [
             "debugger",
             "eval(",
@@ -170,13 +176,13 @@ def handle_js_analyze(args):
         if found_kw:
             output.extend(found_kw)
         else:
-            output.append(f"    (none)")
+            output.append("    (none)")
 
     return f"[JS] JavaScript Analysis for {url}:\n" + "\n".join(output)
 
 
 def handle_apk_analyze(args):
-    path = args["path"]
+    path = args.get("path", "")
     output = []
 
     if not os.path.isfile(path):
@@ -187,19 +193,19 @@ def handle_apk_analyze(args):
     output.append(f"  Size: {size:,} bytes ({size/1024/1024:.1f} MB)")
 
     has_aapt = subprocess.run(
-        ["which", "aapt2"], capture_output=True, text=True).returncode == 0
+        ["which", "aapt2"], capture_output=True, text=True, check=False).returncode == 0
     has_aapt_old = subprocess.run(
-        ["which", "aapt"], capture_output=True, text=True).returncode == 0
+        ["which", "aapt"], capture_output=True, text=True, check=False).returncode == 0
     has_apkanalyzer = subprocess.run(
-        ["which", "apkanalyzer"], capture_output=True, text=True).returncode == 0
+        ["which", "apkanalyzer"], capture_output=True, text=True, check=False).returncode == 0
     has_unzip = subprocess.run(
-        ["which", "unzip"], capture_output=True, text=True).returncode == 0
+        ["which", "unzip"], capture_output=True, text=True, check=False).returncode == 0
     has_jarsigner = subprocess.run(
-        ["which", "jarsigner"], capture_output=True, text=True).returncode == 0
+        ["which", "jarsigner"], capture_output=True, text=True, check=False).returncode == 0
 
     if has_aapt:
         r = subprocess.run(["aapt2", "dump", "badging", path],
-                           capture_output=True, text=True, timeout=60)
+                           capture_output=True, text=True, timeout=60, check=False)
         out = r.stdout
         for line in out.splitlines():
             if any(
@@ -219,7 +225,7 @@ def handle_apk_analyze(args):
                 output.append(f"  {line.strip()}")
     elif has_aapt_old:
         r = subprocess.run(["aapt", "dump", "badging", path],
-                           capture_output=True, text=True, timeout=60)
+                           capture_output=True, text=True, timeout=60, check=False)
         out = r.stdout
         for line in out.splitlines():
             if any(
@@ -236,7 +242,7 @@ def handle_apk_analyze(args):
                     "versionName:"]):
                 output.append(f"  {line.strip()}")
     else:
-        output.append(f"\n  [Basic Info (aapt2/aapt not installed)]")
+        output.append("\n  [Basic Info (aapt2/aapt not installed)]")
         if has_unzip:
             r = subprocess.run(["unzip",
                                 "-p",
@@ -244,11 +250,11 @@ def handle_apk_analyze(args):
                                 "AndroidManifest.xml"],
                                capture_output=True,
                                text=True,
-                               timeout=30)
+                               timeout=30, check=False)
             if r.stdout:
-                output.append(f"  AndroidManifest.xml extracted (binary)")
+                output.append("  AndroidManifest.xml extracted (binary)")
             r = subprocess.run(["unzip", "-l", path],
-                               capture_output=True, text=True, timeout=30)
+                               capture_output=True, text=True, timeout=30, check=False)
             for line in r.stdout.splitlines():
                 if any(
                     k in line for k in [
@@ -269,7 +275,7 @@ def handle_apk_analyze(args):
                                 path],
                                capture_output=True,
                                text=True,
-                               timeout=30)
+                               timeout=30, check=False)
             if r.stdout.strip():
                 output.append(f"  {info_type}: {r.stdout.strip()}")
 
@@ -281,7 +287,7 @@ def handle_apk_analyze(args):
                             path],
                            capture_output=True,
                            text=True,
-                           timeout=30)
+                           timeout=30, check=False)
         for line in r.stderr.splitlines():
             if any(
                 k in line for k in [
@@ -291,7 +297,7 @@ def handle_apk_analyze(args):
                     "CN="]):
                 output.append(f"  [Sign] {line.strip()}")
 
-    output.append(f"\n  [Available Analysis Tools]")
+    output.append("\n  [Available Analysis Tools]")
     tools_status = {
         "aapt2": has_aapt, "aapt": has_aapt_old,
         "apkanalyzer": has_apkanalyzer, "unzip": has_unzip,
@@ -300,14 +306,16 @@ def handle_apk_analyze(args):
     for tool, available in tools_status.items():
         output.append(
             f"    {tool}: {'OKINSTALLED' if available else 'FAILNOT INSTALLED'}")
-    output.append(f"\n  Install Android tools: sudo apt install android-sdk")
-    output.append(f"  Install apkanalyzer: sudo apt install apkanalyzer")
+    if sys.platform == 'darwin':
+        output.append("\n  Install Android tools: brew install android-sdk")
+    else:
+        output.append("\n  Install Android tools: sudo apt install android-sdk")
 
-    return f"[APK] APK Analysis:\n" + "\n".join(output)
+    return "[APK] APK Analysis:\n" + "\n".join(output)
 
 
 def handle_binary_analyze(args):
-    path = args["path"]
+    path = args.get("path", "")
     min_len = int(args.get("strings_min", 6))
     output = []
 
@@ -319,27 +327,27 @@ def handle_binary_analyze(args):
     output.append(f"  Size: {size:,} bytes ({size/1024/1024:.1f} MB)")
 
     has_file = subprocess.run(
-        ["which", "file"], capture_output=True, text=True).returncode == 0
+        ["which", "file"], capture_output=True, text=True, check=False).returncode == 0
     has_strings = subprocess.run(
-        ["which", "strings"], capture_output=True, text=True).returncode == 0
+        ["which", "strings"], capture_output=True, text=True, check=False).returncode == 0
     has_objdump = subprocess.run(
-        ["which", "objdump"], capture_output=True, text=True).returncode == 0
+        ["which", "objdump"], capture_output=True, text=True, check=False).returncode == 0
     has_xxd = subprocess.run(
-        ["which", "xxd"], capture_output=True, text=True).returncode == 0
+        ["which", "xxd"], capture_output=True, text=True, check=False).returncode == 0
     has_exiftool = subprocess.run(
-        ["which", "exiftool"], capture_output=True, text=True).returncode == 0
+        ["which", "exiftool"], capture_output=True, text=True, check=False).returncode == 0
 
     if has_file:
         r = subprocess.run(["file", "-b", path],
-                           capture_output=True, text=True, timeout=15)
+                           capture_output=True, text=True, timeout=15, check=False)
         file_type = r.stdout.strip()
         output.append(f"  Type: {file_type}")
     else:
-        output.append(f"  Type: (install 'file' command for detection)")
+        output.append("  Type: (install 'file' command for detection)")
 
     if has_exiftool:
         r = subprocess.run(["exiftool", path],
-                           capture_output=True, text=True, timeout=30)
+                           capture_output=True, text=True, timeout=30, check=False)
         exif_lines = r.stdout.strip().splitlines()
         important_tags = ["File Size", "MIME Type", "Image Size", "File Type",
                           "Created Date", "Modify Date", "Create Date",
@@ -352,7 +360,7 @@ def handle_binary_analyze(args):
             if any(t.lower() in line.lower() for t in important_tags):
                 output.append(f"  [Meta] {line.strip()}")
 
-    output.append(f"\n  [Available Tools]")
+    output.append("\n  [Available Tools]")
     tools_status = {
         "file": has_file, "strings": has_strings, "objdump": has_objdump,
         "xxd": has_xxd, "exiftool": has_exiftool
@@ -362,9 +370,9 @@ def handle_binary_analyze(args):
             f"    {tool}: {'OKINSTALLED' if available else 'FAILNOT INSTALLED'}")
 
     if has_objdump:
-        output.append(f"\n  [ELF/Header Info]")
+        output.append("\n  [ELF/Header Info]")
         r = subprocess.run(["objdump", "-f", path],
-                           capture_output=True, text=True, timeout=15)
+                           capture_output=True, text=True, timeout=15, check=False)
         header_info = r.stdout.strip()
         if header_info and "file format" in header_info:
             for line in header_info.splitlines()[:10]:
@@ -377,7 +385,7 @@ def handle_binary_analyze(args):
                         "entry"]):
                     output.append(f"    {line.strip()}")
         r2 = subprocess.run(["objdump", "-p", path],
-                            capture_output=True, text=True, timeout=15)
+                            capture_output=True, text=True, timeout=15, check=False)
         for line in r2.stdout.splitlines():
             if any(
                 k in line.lower() for k in [
@@ -400,7 +408,7 @@ def handle_binary_analyze(args):
                             path],
                            capture_output=True,
                            text=True,
-                           timeout=30)
+                           timeout=30, check=False)
         all_strings = r.stdout.splitlines()
         output.append(f"    Total strings: {len(all_strings)}")
 
@@ -428,6 +436,6 @@ def handle_binary_analyze(args):
             for s in sorted(set(interesting_strings))[:30]:
                 output.append(f"      {s[:120]}")
         else:
-            output.append(f"    (no interesting strings found)")
+            output.append("    (no interesting strings found)")
 
-    return f"[BINARY] Binary Analysis:\n" + "\n".join(output)
+    return "[BINARY] Binary Analysis:\n" + "\n".join(output)

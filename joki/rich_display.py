@@ -1,10 +1,12 @@
-import re
-import os
 import csv
 import io
-from joki.display import _console, stream_print
-from rich.table import Table
+import os
+
 from rich.syntax import Syntax
+from rich.table import Table
+
+from joki.display import _console, _syntax_background, _syntax_theme, stream_print
+
 
 def print_tool_result_rich(name, args, result):
     if not result:
@@ -26,7 +28,7 @@ def print_tool_result_rich(name, args, result):
         elif name == "read_file":
             path = args.get("path", "")
             ext = os.path.splitext(path)[1].lstrip(".").lower() or "text"
-            _console.print(Syntax(result, ext, line_numbers=False, word_wrap=True))
+            _console.print(Syntax(result, ext, line_numbers=False, word_wrap=True, theme=_syntax_theme(), background_color=_syntax_background()))
             return
 
         elif name == "port_scan":
@@ -44,11 +46,11 @@ def print_tool_result_rich(name, args, result):
                 return
 
         elif name == "search_code":
-            _console.print(Syntax(result, "text", line_numbers=False, word_wrap=True, theme="monokai"))
+            _console.print(Syntax(result, "text", line_numbers=False, word_wrap=True, theme=_syntax_theme(), background_color=_syntax_background()))
             return
 
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001
+        _console.print("[dim]Warning: Gagal menampilkan rich display, fallback ke plain text[/dim]")
 
     # Fallback to normal stream_print
     stream_print(f"       ```\n{result}\n       ```", delay=0.001)
